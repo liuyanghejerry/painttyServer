@@ -107,17 +107,17 @@ At preasent, we only support 16-character length string.
 
 The errcode can be translate via a `errcode` table. Here, we have errcode 200 for unknown error.
 
-200: unknown error.
-201: server is busy.
-202: name collision.
-203: invalid name.
-204: invalid maxMember.
-205: invalid welcomemsg.
-206: invalid emptyclose.
-207: invalid password.
-208: emptyclose not supported.
-209: private room not supported.
-210: too many rooms.
+* 200: unknown error.
+* 201: server is busy.
+* 202: name collision.
+* 203: invalid name.
+* 204: invalid maxMember.
+* 205: invalid welcomemsg.
+* 206: invalid emptyclose.
+* 207: invalid password.
+* 208: emptyclose not supported.
+* 209: private room not supported.
+* 210: too many rooms.
 
 ### Login Room
 
@@ -170,11 +170,11 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 	
 `errcode` table:
 
-300: unknown error.
-301: invalid name.
-302: invalid password or lack of password.
-303: room is full.
-304: you're banned.
+* 300: unknown error.
+* 301: invalid name.
+* 302: invalid password or lack of password.
+* 303: room is full.
+* 304: you're banned.
 	
 ### Painting actions
 
