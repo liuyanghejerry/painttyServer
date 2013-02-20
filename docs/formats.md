@@ -97,6 +97,7 @@ painttyServer:
 		result: true
 	}
 , or:
+
 	{
 		response: "newroom",
 		result: false,
