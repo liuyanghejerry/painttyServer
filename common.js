@@ -17,22 +17,22 @@ exports.qCompress = function (buffer, fn) {
 	zlib.deflate(buffer, function(err, result) {
 		if(err) {
 			console.log(err);
+			fn(result, err);
 		}else{
 			buffers.push(len_array);
 			buffers.push(result);
-			return fn(buffers.toBuffer());
+			fn(buffers.toBuffer());
 		}
 	});
 };
 
 exports.qUncompress = function (buffer, fnc) {
-	buffer = buffer.slice(4, buffer.length);
-	zlib.unzip(buffer, function(err, result) {
+	var resized = buffer.slice(4, buffer.length);
+	zlib.unzip(resized, function(err, result) {
 		if(err) {
 			console.log(err);
-		}else{
-			fnc(result);
 		}
+		fnc(result, err);
 	});
 };
 

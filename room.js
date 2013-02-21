@@ -76,42 +76,26 @@ function Room(options) {
 		return './data/room/'+hash+'.msg';
 	}();
 	// room.msgFileSize = 0;
+	var tf = new BufferedFile({
+				fileName: room.msgFile,
+				bufferSize: 1024*1024,
+				writeCycle: 0
+			});
 		
 	room.dataSocket = new socket.SocketServer();
 	room.dataSocket.maxConnections = room.options.maxLoad;
-	room.dataSocket.on('data', function(cli, d) {
-		// fs.appendFile(room.dataFile, d, function (err) {
-		  // if (err) throw err;
-		// });
-		
-		// bw.open(room.dataFile, {append: true})
-			// .write(d)
-			// .close();
-		bf.append(d);
-		
-		room.dataFileSize += d.length;
-		
+	room.dataSocket.on('datapack', function(cli, dbuf) {
+		bf.append(dbuf);
+		room.dataFileSize += dbuf.length;
 	}).on('connection', function(con){
-		// fs.exists(room.dataFile, function (exists) {
-		  // if(exists){
-			// fs.readFile(room.dataFile, function (err, data) {
-			  // if (err) throw err;
-			  // con.write(data);
-			// });
-		  // }
-		// });
 		bf.readAll(function(da) {
 			con.write(da);
 		});
 	});
 	
-	room.msgSocket = new socket.SocketServer();
+	room.msgSocket = new socket.SocketServer({ waitComplete: true});
 	room.msgSocket.maxConnections = room.options.maxLoad;
-	room.msgSocket.on('data', function(cli, d) {
-		fs.appendFile(room.msgFile, d, function (err) {
-		  if (err) throw err;
-		});
-	}).on('connection', function(con){
+	room.msgSocket.on('connection', function(con){
 		con.on('end', function() {
 			if(room.options.emptyclose){
 				if(room.currentLoad() <= 1){
@@ -130,19 +114,17 @@ function Room(options) {
 				content: room.options.welcomemsg+'\n'
 			}));
 		}
-		fs.exists(room.msgFile, function (exists) {
-		  if(exists){
-			fs.readFile(room.msgFile, function (err, data) {
-			  if (err) throw err;
-			  con.write(data);
-			});
-		  }
+		tf.readAll(function(da) {
+			con.write(da);
 		});
+	}).on('datapack', function(cli, dbuf) {
+		tf.append(dbuf);
 	});
 	
 	room.cmdSocket = new socket.SocketServer({
+		// waitComplete: false,
+		autoBroadcast: false,
 		useAlternativeParser: function(cli, buf) {
-			// common.qUncompress(buf, function(re) {
 				var obj = JSON.parse(buf.toString());
 				var request = obj['request']?obj['request']:'';
 				if( !_.isString(request) || request.length < 1 ) {
@@ -191,7 +173,6 @@ function Room(options) {
 						return;
 						break;
 				}
-			// });
 		}
 	});
 	room.cmdSocket.maxConnections = room.options.maxLoad;

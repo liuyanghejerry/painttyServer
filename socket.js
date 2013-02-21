@@ -10,6 +10,7 @@ function SocketServer(options) {
 	
 	var defaultOptions = {
 		autoBroadcast: true,
+		waitComplete: true,
 		useAlternativeParser: false,
 		compressed: true,
 		indebug: false
@@ -36,13 +37,17 @@ function SocketServer(options) {
 			server.clients.splice(index, 1);
 		}).on('data', function (buf) {
 			server.emit('data', cli, buf);
-			if(op.autoBroadcast) {
-				_.each(server.clients, function(c) {
-					if(c != cli) c.write(buf);
-				});
-			}
-			if(_.isFunction(op.useAlternativeParser)) {
-				server.onData(cli, buf, op.useAlternativeParser);
+			if(op.waitComplete) {
+				server.onData(cli, buf);
+			}else{
+				if(op.autoBroadcast) {
+					_.each(server.clients, function(c) {
+						if(c != cli) c.write(buf);
+					});
+				}
+				if(_.isFunction(op.useAlternativeParser)) {
+					server.onData(cli, buf);
+				}
 			}
 		}).on('error', function(err) {
 			console.log('Error with socket!');
@@ -58,49 +63,37 @@ function SocketServer(options) {
 util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendData = function (cli, data) {
+	var server = this;
 	if(this.options.compressed === true){
 		common.qCompress(data, function(d) {
-			var len = d.length + 1;
-			var c1, c2, c3, c4;
-			var tmp = new Buffer(5);
-			c1 = len & 0xFF;
-			len >>= 8;
-			c2 = len & 0xFF;
-			len >>= 8;
-			c3 = len & 0xFF;
-			len >>= 8;
-			c4 = len & 0xFF;
-			tmp[0] = c4;
-			tmp[1] = c3;
-			tmp[2] = c2;
-			tmp[3] = c1;
-			tmp[4] = 0x1;
-			cli.write(tmp);
-			cli.write(d);
+			cli.write( server.pack(d, true) );
 		});
 	}else{
-		var len = data.length + 1;
-		var c1, c2, c3, c4;
-		var tmp = new Buffer(5);
-		c1 = len & 0xFF;
-		len >>= 8;
-		c2 = len & 0xFF;
-		len >>= 8;
-		c3 = len & 0xFF;
-		len >>= 8;
-		c4 = len & 0xFF;
-		tmp[0] = c4;
-		tmp[1] = c3;
-		tmp[2] = c2;
-		tmp[3] = c1;
-		tmp[4] = 0;
-		cli.write(tmp);
-		cli.write(data);
+		cli.write( server.pack(data, false) );
 	}
 	
 };
 
-SocketServer.prototype.onData = function(cli, buffer, fn) {
+SocketServer.prototype.pack = function (data, compressed) {
+	var len = data.length + 1;
+	var c1, c2, c3, c4;
+	var tmp = new Buffer(5);
+	c1 = len & 0xFF;
+	len >>= 8;
+	c2 = len & 0xFF;
+	len >>= 8;
+	c3 = len & 0xFF;
+	len >>= 8;
+	c4 = len & 0xFF;
+	tmp[0] = c4;
+	tmp[1] = c3;
+	tmp[2] = c2;
+	tmp[3] = c1;
+	tmp[4] = compressed?1:0;
+	return Buffer.concat([tmp, data], 5+data.length);
+};
+
+SocketServer.prototype.onData = function(cli, buffer) {
 	var server = this;
 	function tmpF() {
 		if(cli.commandStarted){
@@ -109,11 +102,35 @@ SocketServer.prototype.onData = function(cli, buffer, fn) {
 				var isCompressed = (buf[0] & 0x1 === 1)?true:false;
 				var dbuf = cli.socketBuf.slice(1);
 				if(isCompressed){
-					common.qUncompress(dbuf, function(d) {
-						fn(cli, d);
-					});
+					var repacked = server.pack(dbuf, true);
+					server.emit('datapack', cli, repacked);
+					
+					if(_.isFunction(server.options.useAlternativeParser)){
+						common.qUncompress(dbuf, function(d, err) {
+							if(err){
+								return;
+							}
+							server.options.useAlternativeParser(cli, d);
+						});
+					}
+					if(server.options.autoBroadcast) {
+						_.each(server.clients, function(c) {
+							if(c != cli) c.write(repacked);
+						});
+					}
 				}else{
-					fn(cli, dbuf);
+					var repacked = server.pack(dbuf, false);
+					server.emit('datapack', cli, repacked);
+						
+					if(_.isFunction(server.options.useAlternativeParser)){
+						server.options.useAlternativeParser(cli, repacked);
+					}
+					
+					if(server.options.autoBroadcast) {
+						_.each(server.clients, function(c) {
+							if(c != cli) c.write(repacked);
+						});
+					}
 				}
 				cli.socketBuf = new Buffers();
 				cli.dataSize = 0;

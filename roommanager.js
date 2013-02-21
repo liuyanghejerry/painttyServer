@@ -17,8 +17,9 @@ function RoomManager(options) {
 	var defaultOptions = new function() {
 		var self = this;
 		self.name = '', // Name of RoomManager
+		self.maxRoom = 50, // Limits the rooms
 		self.pubPort = 3030, // Default public port. This is used to connect with clients or master.
-		self.log = true  // Log or not
+		self.log = false  // Log or not
 	};
 	
 	if(_.isUndefined(options)) {
@@ -91,7 +92,21 @@ function RoomManager(options) {
 						self.pubServer.sendData(cli, new Buffer(jsString));
 						return;
 					}
-					// console.log(obj);
+					
+					// amount of room limit begin
+					if(self.op.maxRoom) {
+						if(self.roomObjs.length > self.op.maxRoom){
+							var ret = {
+								response: 'newroom',
+								result: false,
+								errcode: 210
+							};
+							var jsString = JSON.stringify(ret);
+							self.pubServer.sendData(cli, new Buffer(jsString));
+							return;
+						}
+					}
+					// amount of room limit end
 					// name check begin
 					if(!infoObj['name']){
 						var ret = {
@@ -220,19 +235,7 @@ function RoomManager(options) {
 						var emptyclose = false;
 					}
 					// emptyclose check end
-					// amount of room limit
-					// TODO: change this amount to a configurable one
-					if(self.roomObjs.length > 20){
-						var ret = {
-							response: 'newroom',
-							result: false,
-							errcode: 210
-						};
-						var jsString = JSON.stringify(ret);
-						self.pubServer.sendData(cli, new Buffer(jsString));
-						return;
-					}
-					
+
 					var room = new Room({
 						'name': name,
 						'maxLoad': maxLoad,
@@ -271,26 +274,27 @@ function RoomManager(options) {
 util.inherits(RoomManager, events.EventEmitter);
 
 RoomManager.prototype.start = function() {
-	var options = {
-	  hostname: 'dns.mrspaint.com',
-	  port: 80,
-	  path: '/master',
-	  method: 'GET'
-	};
+	// TODO
+	// var options = {
+	  // hostname: 'dns.mrspaint.com',
+	  // port: 80,
+	  // path: '/master',
+	  // method: 'GET'
+	// };
 
-	var req = http.request(options, function(res) {
-	  common.log('Trying to get master address');
-	  common.log('STATUS: ' + res.statusCode);
-	  common.log('HEADERS: ' + JSON.stringify(res.headers));
-	  res.setEncoding('utf8');
-	  res.on('data', function (chunk) {
-		common.log('BODY: ' + chunk);
-	  });
-	});
+	// var req = http.request(options, function(res) {
+	  // common.log('Trying to get master address');
+	  // common.log('STATUS: ' + res.statusCode);
+	  // common.log('HEADERS: ' + JSON.stringify(res.headers));
+	  // res.setEncoding('utf8');
+	  // res.on('data', function (chunk) {
+		// common.log('BODY: ' + chunk);
+	  // });
+	// });
 	
-	req.on('error', function(e) {
-	  common.log('problem with request: ' + e.message);
-	});
+	// req.on('error', function(e) {
+	  // common.log('problem with request: ' + e.message);
+	// });
 	
 	this.pubServer.listen(this.op.pubPort);
 };
