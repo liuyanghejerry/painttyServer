@@ -52,7 +52,7 @@ function SocketServer(options) {
 		}).on('error', function(err) {
 			console.log('Error with socket!');
 			console.log(err);
-			cli.end();
+			cli.destroy();
 		});
 	}).on('error', function(err) {
 		console.log('Error with server!');
