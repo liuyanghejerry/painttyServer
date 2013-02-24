@@ -2,6 +2,8 @@ var util = require("util");
 var net = require('net');
 var Buffers = require('buffers');
 var _ = require('underscore');
+// var redis = require("redis"),
+        // redisClient = redis.createClient();
 var common = require('./common.js');
 
 
@@ -98,9 +100,10 @@ SocketServer.prototype.onData = function(cli, buffer) {
 	function tmpF() {
 		if(cli.commandStarted){
 			if(cli.socketBuf.length >= cli.dataSize && cli.dataSize != 0) {
-				var buf = cli.socketBuf.toBuffer();
-				var isCompressed = (buf[0] & 0x1 === 1)?true:false;
-				var dbuf = cli.socketBuf.slice(1);
+				var dbuf = cli.socketBuf.splice(1, cli.dataSize).toBuffer(); // get real data
+				var isCompressed = cli.socketBuf.splice(0, 1); // get compress flag
+				isCompressed = isCompressed.get(0) & 0x1;
+				isCompressed = isCompressed !== 0;
 				if(isCompressed){
 					var repacked = server.pack(dbuf, true);
 					server.emit('datapack', cli, repacked);
@@ -132,7 +135,6 @@ SocketServer.prototype.onData = function(cli, buffer) {
 						});
 					}
 				}
-				cli.socketBuf = new Buffers();
 				cli.dataSize = 0;
 				cli.commandStarted = false;
 			}else{
@@ -141,6 +143,9 @@ SocketServer.prototype.onData = function(cli, buffer) {
 			}
 		}else{
 			if(buffer.length < 5 ) {
+				if(!cli.socketBuf){
+					cli.socketBuf = new Buffers();
+				}
 				cli.socketBuf.push(buffer);
 				return;
 			}else{
@@ -157,6 +162,7 @@ SocketServer.prototype.onData = function(cli, buffer) {
 	};
 	tmpF();
 };
+
 
 SocketServer.prototype.kick = function(cli) {
 	var server = this;
