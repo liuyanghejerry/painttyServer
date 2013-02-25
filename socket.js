@@ -2,8 +2,6 @@ var util = require("util");
 var net = require('net');
 var Buffers = require('buffers');
 var _ = require('underscore');
-// var redis = require("redis"),
-        // redisClient = redis.createClient();
 var common = require('./common.js');
 
 
@@ -29,9 +27,10 @@ function SocketServer(options) {
 	server.on('connection', function(cli) {
 		cli.socketBuf = new Buffers();
 		cli.commandStarted = false;
+		cli.isCompressed = false;
 		cli.dataSize = 0;
-		cli.setKeepAlive(true, 60*1000);
-		cli.setNoDelay(true);
+		cli.setKeepAlive(true);
+		// cli.setNoDelay(true);
 		cli.on('connect', function() {
 			server.clients.push(cli);
 		}).on('close', function() {
@@ -97,20 +96,20 @@ SocketServer.prototype.pack = function (data, compressed) {
 
 SocketServer.prototype.onData = function(cli, buffer) {
 	var server = this;
+	cli.socketBuf.push(buffer);
 	function tmpF() {
 		if(cli.commandStarted){
 			if(cli.socketBuf.length >= cli.dataSize && cli.dataSize != 0) {
-				var dbuf = cli.socketBuf.splice(1, cli.dataSize).toBuffer(); // get real data
-				var isCompressed = cli.socketBuf.splice(0, 1); // get compress flag
-				isCompressed = isCompressed.get(0) & 0x1;
-				isCompressed = isCompressed !== 0;
-				if(isCompressed){
-					var repacked = server.pack(dbuf, true);
-					server.emit('datapack', cli, repacked);
+				var dbuf = cli.socketBuf.slice(0, cli.dataSize+4); // binary to send or save
+				var dbufed = cli.socketBuf.slice(5, cli.dataSize); // get real data
+				console.log(dbuf);
+				if(cli.isCompressed){
+					server.emit('datapack', cli, dbuf);
 					
 					if(_.isFunction(server.options.useAlternativeParser)){
-						common.qUncompress(dbuf, function(d, err) {
+						common.qUncompress(dbufed, function(d, err) {
 							if(err){
+								console.log(err);
 								return;
 							}
 							server.options.useAlternativeParser(cli, d);
@@ -118,45 +117,44 @@ SocketServer.prototype.onData = function(cli, buffer) {
 					}
 					if(server.options.autoBroadcast) {
 						_.each(server.clients, function(c) {
-							if(c != cli) c.write(repacked);
+							if(c != cli) c.write(dbuf);
 						});
 					}
 				}else{
-					var repacked = server.pack(dbuf, false);
-					server.emit('datapack', cli, repacked);
+					server.emit('datapack', cli, dbuf);
 						
 					if(_.isFunction(server.options.useAlternativeParser)){
-						server.options.useAlternativeParser(cli, repacked);
+						server.options.useAlternativeParser(cli, dbufed);
 					}
 					
 					if(server.options.autoBroadcast) {
 						_.each(server.clients, function(c) {
-							if(c != cli) c.write(repacked);
+							if(c != cli) c.write(dbuf);
 						});
 					}
 				}
+				
+				cli.socketBuf.splice(0, cli.dataSize+4);
 				cli.dataSize = 0;
 				cli.commandStarted = false;
+				if(cli.socketBuf.length > 0){
+					process.nextTick(tmpF);
+				}
 			}else{
-				cli.socketBuf.push(buffer);
-				return;
+
 			}
 		}else{
-			if(buffer.length < 5 ) {
-				if(!cli.socketBuf){
-					cli.socketBuf = new Buffers();
-				}
-				cli.socketBuf.push(buffer);
-				return;
+			if(!cli.socketBuf.length){
 			}else{
-				if(!cli.commandStarted) {
-					cli.socketBuf.push(buffer);
+				if(cli.socketBuf.length < 5){
+				}else{
+					cli.commandStarted = true;
+					var size = cli.socketBuf.slice(0, 4);
+					cli.isCompressed = (cli.socketBuf.slice(4, 5))[0] === 0x1;
+					cli.dataSize = (size[0] << 24) + (size[1] << 16) + (size[2] << 8) + size[3];
+					process.nextTick(tmpF);
 				}
-				cli.commandStarted = true;
-				var size = cli.socketBuf.slice(0, 4);
-				cli.dataSize = (size[0] << 24) + (size[1] << 16) + (size[2] << 8) + size[3];
-				cli.socketBuf.splice(0, 4);
-				tmpF();
+			
 			}
 		}
 	};

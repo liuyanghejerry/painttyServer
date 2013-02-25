@@ -47,6 +47,7 @@ function RoomManager(options) {
 		autoBroadcast: false, 
 		useAlternativeParser: function(cli, data) {
 			var obj = JSON.parse(data.toString());
+			console.log(obj);
 			var request = obj['request']?obj['request']:'';
 			if( !_.isString(request) || request.length <1 ) {
 				return;

@@ -93,7 +93,7 @@ function Room(options) {
 		});
 	});
 	
-	room.msgSocket = new socket.SocketServer({ waitComplete: true});
+	room.msgSocket = new socket.SocketServer();
 	room.msgSocket.maxConnections = room.options.maxLoad;
 	room.msgSocket.on('connection', function(con){
 		con.on('end', function() {
