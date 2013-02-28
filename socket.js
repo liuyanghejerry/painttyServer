@@ -30,7 +30,6 @@ function SocketServer(options) {
 		cli.isCompressed = false;
 		cli.dataSize = 0;
 		cli.setKeepAlive(true);
-		// cli.setNoDelay(true);
 		cli.on('connect', function() {
 			server.clients.push(cli);
 		}).on('close', function() {
@@ -53,7 +52,10 @@ function SocketServer(options) {
 		}).on('error', function(err) {
 			console.log('Error with socket!');
 			console.log(err);
+			cli.isInError = true;
 			cli.destroy();
+			delete cli['socketBuf'];
+			delete cli['dataSize'];
 		});
 	}).on('error', function(err) {
 		console.log('Error with server!');
@@ -67,18 +69,23 @@ SocketServer.prototype.sendData = function (cli, data) {
 	var server = this;
 	if(this.options.compressed === true){
 		common.qCompress(data, function(d) {
-			cli.write( server.pack(d, true) );
+			var tmpData = new Buffer(1);
+			tmpData[0] = 0x1;
+			var r_data = Buffer.concat([tmpData, d]);
+			cli.write( server.pack(r_data) );
 		});
 	}else{
-		cli.write( server.pack(data, false) );
+		var tmpData = new Buffer(1);
+		tmpData[0] = 0x0;
+		var r_data = Buffer.concat([tmpData, data]);
+		cli.write( server.pack(r_data) );
 	}
-	
 };
 
-SocketServer.prototype.pack = function (data, compressed) {
-	var len = data.length + 1;
+SocketServer.prototype.pack = function (data) {
+	var len = data.length;
 	var c1, c2, c3, c4;
-	var tmp = new Buffer(5);
+	var tmp = new Buffer(4);
 	c1 = len & 0xFF;
 	len >>= 8;
 	c2 = len & 0xFF;
@@ -90,77 +97,83 @@ SocketServer.prototype.pack = function (data, compressed) {
 	tmp[1] = c3;
 	tmp[2] = c2;
 	tmp[3] = c1;
-	tmp[4] = compressed?1:0;
-	return Buffer.concat([tmp, data], 5+data.length);
+	return Buffer.concat([tmp, data], 4+data.length);
 };
+
 
 SocketServer.prototype.onData = function(cli, buffer) {
 	var server = this;
+	if(cli.isInError === true){
+		console.log('In error client data skipped.');
+		return;
+	}
 	cli.socketBuf.push(buffer);
-	function tmpF() {
-		if(cli.commandStarted){
-			if(cli.socketBuf.length >= cli.dataSize && cli.dataSize != 0) {
-				var dbuf = cli.socketBuf.slice(0, cli.dataSize+4); // binary to send or save
-				var dbufed = cli.socketBuf.slice(5, cli.dataSize); // get real data
-				console.log(dbuf);
-				if(cli.isCompressed){
-					server.emit('datapack', cli, dbuf);
-					
-					if(_.isFunction(server.options.useAlternativeParser)){
-						common.qUncompress(dbufed, function(d, err) {
-							if(err){
-								console.log(err);
-								return;
-							}
-							server.options.useAlternativeParser(cli, d);
-						});
-					}
-					if(server.options.autoBroadcast) {
-						_.each(server.clients, function(c) {
-							if(c != cli) c.write(dbuf);
-						});
-					}
-				}else{
-					server.emit('datapack', cli, dbuf);
-						
-					if(_.isFunction(server.options.useAlternativeParser)){
-						server.options.useAlternativeParser(cli, dbufed);
-					}
-					
-					if(server.options.autoBroadcast) {
-						_.each(server.clients, function(c) {
-							if(c != cli) c.write(dbuf);
-						});
-					}
-				}
-				
-				cli.socketBuf.splice(0, cli.dataSize+4);
-				cli.dataSize = 0;
-				cli.commandStarted = false;
-				if(cli.socketBuf.length > 0){
-					process.nextTick(tmpF);
-				}
-			}else{
-
-			}
-		}else{
-			if(!cli.socketBuf.length){
-			}else{
-				if(cli.socketBuf.length < 5){
-				}else{
-					cli.commandStarted = true;
-					var size = cli.socketBuf.slice(0, 4);
-					cli.isCompressed = (cli.socketBuf.slice(4, 5))[0] === 0x1;
-					cli.dataSize = (size[0] << 24) + (size[1] << 16) + (size[2] << 8) + size[3];
-					process.nextTick(tmpF);
-				}
-			
-			}
+	
+	function GETPACKAGESIZEFROMDATA() {
+		var pg_size_array = cli.socketBuf.splice(0, 4);
+		pg_size_array = pg_size_array.toBuffer();
+		var pg_size = (pg_size_array[0] << 24) + (pg_size_array[1] << 16) + (pg_size_array[2] << 8) + pg_size_array[3];
+		return pg_size;
+	}
+	
+	function READRAWBYTES(size) {
+		var data = cli.socketBuf.splice(0, size);
+		data = data.toBuffer();
+		return data;
+	}
+	
+	function REBUILD(rawData) {
+		return server.pack(rawData);
+	}
+	
+	function GETFLAG(pkgData) {
+		return pkgData[0] === 0x1;
+	}
+	
+	while (true) {
+		if(cli.isInError === true){
+			console.log('In error client data skipped.');
+			return;
 		}
-	};
-	tmpF();
+		
+		if(cli.dataSize === 0){
+			if (cli.socketBuf.length < 4)
+				return;
+			cli.dataSize = GETPACKAGESIZEFROMDATA();
+		}
+		if (cli.socketBuf.length < cli.dataSize)
+            return;
+        var packageData = READRAWBYTES(cli.dataSize);
+		var isCompressed = GETFLAG(packageData);
+		var dataBlock = packageData.slice(1);
+		
+		if(_.isFunction(server.options.useAlternativeParser)){
+			if(isCompressed) {
+				common.qUncompress(dataBlock, function(d, err) {
+					if(err){
+						console.log(err);
+						return;
+					}
+					server.options.useAlternativeParser(cli, d);
+				});
+			}else{
+				server.options.useAlternativeParser(cli, dataBlock);
+			}
+			
+		}
+		
+        var repacked = REBUILD(packageData);
+		server.emit('datapack', cli, repacked);
+		
+		if(server.options.autoBroadcast) {
+			_.each(server.clients, function(c) {
+				if(c != cli) c.write(repacked);
+			});
+		}
+		
+        cli.dataSize = 0;
+	}
 };
-
 
 SocketServer.prototype.kick = function(cli) {
 	var server = this;
