@@ -190,7 +190,12 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 			},
 			brush: {
 				width: 10,
-				color: QColor,
+				color: {
+					red: 0,
+					green: 0,
+					blue: 0,
+					alpha: 100
+				},
 				name: "Brush"
 			},
 			layer: "layer0",
@@ -213,7 +218,12 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 			},
 			brush: {
 				width: 10,
-				color: QColor,
+				color: color: {
+					red: 255,
+					green: 255,
+					blue: 255,
+					alpha: 20
+				},
 				name: "Brush"
 			},
 			layer: "layer1",
@@ -221,7 +231,9 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 		}
 	}
 	
-Notice, QColor is a temporary way to store color. RGB seems to be the best way to store and transfer, but on client, we still have a HSV model. Thus, this is not the best time to talk about it.
+<s>Notice, QColor is a temporary way to store color. RGB seems to be the best way to store and transfer, but on client, we still have a HSV model. Thus, this is not the best time to talk about it. </s>
+
+Color now is split to four value, named RGBA. They're all between 0 to 255.
 
 ### Text Message
 
