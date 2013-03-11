@@ -15,12 +15,17 @@ function Room(options) {
 	var defaultOptions = new function() {
 		var self = this;
 		self.name = '',
+		self.canvasSize = {
+			width: 720,
+			height: 480
+		},
 		self.password = '', // for private room
 		self.maxLoad = 5,
 		self.welcomemsg = '',
 		self.emptyclose = false,
 		self.permanent = false,
 		self.expiration = 0, // 0 for limitless
+		self.salt = '',
 		self.log = false
 	};
 	
@@ -44,6 +49,16 @@ function Room(options) {
 	room.workingSockets = 0;
 	room.options = op;
 	
+	// NOTE: here we use sync read function to ensure we have that key when running.
+	if(room.options.salt.length < 1){
+		room.options.salt = fs.readFileSync('./config/salt.key');
+	}
+	
+	var hash_source = room.options.name + room.options.salt;
+	var hashed = crypto.createHash('sha1');
+	hashed.update(hash_source, 'utf8');					
+	room.signed_key = hashed.digest('hex');
+	
 	room.dataFile = function() {
 		fs.exists('./data/room/', function (exists) {
 		  if(!exists){
@@ -52,7 +67,7 @@ function Room(options) {
 		});
 		
 		var hash = crypto.createHash('sha1');
-		hash.update(op.name, 'utf8');
+		hash.update(room.options.name, 'utf8');
 		hash = hash.digest('hex');
 		return './data/room/'+hash+'.data';
 	}();
@@ -165,31 +180,46 @@ function Room(options) {
 							info: {
 								historysize: room.dataFileSize,
 								dataport: room.ports().dataPort,
-								msgport: room.ports().msgPort
+								msgport: room.ports().msgPort,
+								size: room.options.canvasSize,
 								}
 						};
 						var jsString = JSON.stringify(ret);
 						room.cmdSocket.sendData(cli, new Buffer(jsString));
 						return;
 						break;
+					case 'close':
+						if(!obj['key'] || !_.isString(obj['key'])){
+							var ret = {
+								response: 'close',
+								result: false
+							};
+							var jsString = JSON.stringify(ret);
+							room.cmdSocket.sendData(cli, new Buffer(jsString));
+						}else{
+							if(obj['key'].toLowerCase() == room.signed_key.toLowerCase()){
+								var ret = {
+									response: 'close',
+									result: true
+								};
+								var jsString = JSON.stringify(ret);
+								room.cmdSocket.sendData(cli, new Buffer(jsString));
+								var ret_all = {
+									action: 'close',
+									'info': {
+										reason: 501
+									}
+								};
+								jsString = JSON.stringify(ret_all);
+								room.cmdSocket.broadcastData(new Buffer(jsString));
+								room.close();
+							}
+						}
+						break;
 				}
 		}
 	});
 	room.cmdSocket.maxConnections = room.options.maxLoad;
-	// room.cmdSocket.on('data', function(cli, d) {
-		// fs.appendFile(room.cmdFile, d, function (err) {
-		  // if (err) throw err;
-		// });
-	// }).on('connection', function(con){
-		// fs.exists(room.cmdFile, function (exists) {
-		  // if(exists){
-			// fs.readFile(room.cmdFile, function (err, data) {
-			  // if (err) throw err;
-			  // con.write(data);
-			// });
-		  // }
-		// });
-	// });
 	
 	var tmpF = function() {
 		room.workingSockets += 1;
@@ -198,7 +228,8 @@ function Room(options) {
 				cmdPort: room.cmdSocket.address().port,
 				maxLoad: room.options.maxLoad,
 				currentLoad: room.currentLoad(),
-				name: room.options.name
+				name: room.options.name,
+				key: room.signed_key
 			});
 		}
 	};

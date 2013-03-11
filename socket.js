@@ -82,6 +82,13 @@ SocketServer.prototype.sendData = function (cli, data) {
 	}
 };
 
+SocketServer.prototype.broadcastData = function (data) {
+	var server = this;
+	_.each(server.clients, function(cli) {
+		server.sendData(cli, data);
+	});
+};
+
 SocketServer.prototype.pack = function (data) {
 	var len = data.length;
 	var c1, c2, c3, c4;

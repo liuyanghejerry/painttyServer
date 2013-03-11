@@ -94,7 +94,12 @@ painttyServer:
 
 	{
 		response: "newroom",
-		result: true
+		result: true,
+		info: {
+			port: 20391,
+			password: "",
+			key: "C96F36C50461C0654E7219E8BC68DF6E4C4E62D9"
+		}
 	}
 , or:
 
@@ -104,7 +109,9 @@ painttyServer:
 		errcode: 200
 	}
 	
-At preasent, we only support 16-character length string.
+At preasent, we only support 16-character length string for name.
+
+A successful result returns a info object, including cmdPort, password and a signed key. This is very convenient for client to login the room directly. The signed key is a token of room owner. To protect the room from being attacked by hackers or saboteurs, room owners should never spread this signed key out.
 
 The errcode can be translate via a `errcode` table. Here, we have errcode 200 for unknown error.
 
@@ -119,6 +126,7 @@ The errcode can be translate via a `errcode` table. Here, we have errcode 200 fo
 * 208: emptyclose not supported.
 * 209: private room not supported.
 * 210: too many rooms.
+* 211: invalid canvasSize.
 
 ### Login Room
 
@@ -176,6 +184,49 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 * 302: invalid password or lack of password.
 * 303: room is full.
 * 304: you're banned.
+
+### Room management
+
+All room management actions need a signed key to prove that the actions are made by room owners.
+
+#### Close Room
+
+client sends:
+
+	{
+		request: "close",
+		key: ""
+	}
+	
+server returns:
+
+	{
+		response: "close",
+		result: true
+	}
+
+or
+	
+	{
+		response: "close",
+		result: false
+	}
+
+Since the only reason for a failed close is a wrong key, we don't use errcode here.
+
+Besides, server will send a message via cmdSocket, telling every client to exit the room, which will look like:
+
+	{
+		action: 'close',
+		info: {
+			reason: 501
+		}
+	}
+
+The `reason` can be:
+
+* 500: closed by room or room manager
+* 501: closed by room owner
 	
 ### Painting actions
 

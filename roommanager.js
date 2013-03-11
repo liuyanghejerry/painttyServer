@@ -3,7 +3,7 @@ var http = require('http');
 var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
-var Buffers = require('buffers');
+// var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
 var socket = require('./socket.js');
@@ -64,7 +64,7 @@ function RoomManager(options) {
 							maxload: item.options.maxLoad,
 							currentload: item.currentLoad(),
 							name: item.options.name,
-							'private': item.options.password.length > 0?true:false
+							'private': item.options.password.length > 0
 						};
 						// console.log(r);
 						list.push(r);
@@ -236,22 +236,67 @@ function RoomManager(options) {
 						var emptyclose = false;
 					}
 					// emptyclose check end
+					// canvasSize check begin
+					if(infoObj['size']){
+						if(!_.isObject(infoObj['size'])){
+							var ret = {
+								response: 'newroom',
+								result: false,
+								errcode: 211
+							};
+							var jsString = JSON.stringify(ret);
+							self.pubServer.sendData(cli, new Buffer(jsString));
+							return;
+						}
+						var canvasWidth = infoObj['size']['width'];
+						var canvasHeight = infoObj['size']['height'];
+						if(!canvasWidth || !canvasHeight){
+							var ret = {
+								response: 'newroom',
+								result: false,
+								errcode: 211
+							};
+							var jsString = JSON.stringify(ret);
+							self.pubServer.sendData(cli, new Buffer(jsString));
+							return;
+						}
+						var canvasSize = {
+							width: parseInt(canvasWidth, 10),
+							height: parseInt(canvasHeight, 10)
+						};
+					}else{
+						var ret = {
+							response: 'newroom',
+							result: false,
+							errcode: 211
+						};
+						var jsString = JSON.stringify(ret);
+						self.pubServer.sendData(cli, new Buffer(jsString));
+						return;
+					}
+					// canvasSize check end
 
 					var room = new Room({
 						'name': name,
 						'maxLoad': maxLoad,
 						'welcomemsg': welcomemsg,
 						'emptyclose': emptyclose,
-						'password': password
+						'password': password,
+						'canvasSize': canvasSize,
 						});
-					self.roomObjs[infoObj['name']] = room;
+					
 					room.on('create', function(info) {
 						var ret = {
 							response: 'newroom',
-							result: true
+							result: true,
+							'info': {
+								port: info['cmdPort'],
+								key: info['key']
+							}
 						};
 						var jsString = JSON.stringify(ret);
 						self.pubServer.sendData(cli, new Buffer(jsString));
+						self.roomObjs[infoObj['name']] = room;
 					}).on('close', function() {
 						delete self.roomObjs[room.options.name];
 					});
