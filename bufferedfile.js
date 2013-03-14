@@ -107,4 +107,12 @@ BufferedFile.prototype.readAll = function (fn) {
 	}
 };
 
+BufferedFile.prototype.clearAll = function (fn) {
+	var bf = this;
+	if(bf.buf.length > 0){
+		bf.buf = new Buffers();
+	}
+	fs.truncate(bf.op.fileName, 0, function() {});
+};
+
 module.exports = BufferedFile;

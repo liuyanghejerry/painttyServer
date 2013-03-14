@@ -30,9 +30,8 @@ function SocketServer(options) {
 		cli.isCompressed = false;
 		cli.dataSize = 0;
 		cli.setKeepAlive(true);
-		cli.on('connect', function() {
-			server.clients.push(cli);
-		}).on('close', function() {
+		server.clients.push(cli);
+		cli.on('close', function() {
 			var index = server.clients.indexOf(cli);
 			server.clients.splice(index, 1);
 		}).on('data', function (buf) {

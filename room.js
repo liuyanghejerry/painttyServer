@@ -211,8 +211,41 @@ function Room(options) {
 									}
 								};
 								jsString = JSON.stringify(ret_all);
+								console.log(jsString);
 								room.cmdSocket.broadcastData(new Buffer(jsString));
 								room.close();
+							}
+						}
+						break;
+					case 'clearall':
+						if(!obj['key'] || !_.isString(obj['key'])){
+							var ret = {
+								response: 'clearall',
+								result: false
+							};
+							var jsString = JSON.stringify(ret);
+							room.cmdSocket.sendData(cli, new Buffer(jsString));
+						}else{
+							if(obj['key'].toLowerCase() == room.signed_key.toLowerCase()){
+								var ret = {
+									response: 'clearall',
+									result: true
+								};
+								var jsString = JSON.stringify(ret);
+								room.cmdSocket.sendData(cli, new Buffer(jsString));
+								var ret_all = {
+									action: 'clearall',
+								};
+								jsString = JSON.stringify(ret_all);
+								room.cmdSocket.broadcastData(new Buffer(jsString));
+								bf.clearAll();
+							}else{
+								var ret = {
+									response: 'clearall',
+									result: false
+								};
+								var jsString = JSON.stringify(ret);
+								room.cmdSocket.sendData(cli, new Buffer(jsString));
 							}
 						}
 						break;
@@ -243,8 +276,8 @@ util.inherits(Room, events.EventEmitter);
 
 Room.prototype.start = function() {
 	if(!this.options.permanent) {
-		fs.unlink(this.dataFile);
-		fs.unlink(this.msgFile);
+		fs.unlink(this.dataFile, function(){});
+		fs.unlink(this.msgFile, function(){});
 	}
 	this.cmdSocket.listen();
 	this.dataSocket.listen();
@@ -266,8 +299,8 @@ Room.prototype.close = function() {
 	this.dataSocket.close();
 	this.msgSocket.close();
 	if(!this.options.permanent) {
-		fs.unlink(this.dataFile);
-		fs.unlink(this.msgFile);
+		fs.unlink(this.dataFile, function(){});
+		fs.unlink(this.msgFile, function(){});
 	}
 };
 
