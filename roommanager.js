@@ -3,7 +3,6 @@ var http = require('http');
 var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
-// var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
 var socket = require('./socket.js');
@@ -16,10 +15,10 @@ function RoomManager(options) {
 	
 	var defaultOptions = new function() {
 		var self = this;
-		self.name = '', // Name of RoomManager
-		self.maxRoom = 50, // Limits the rooms
-		self.pubPort = 3030, // Default public port. This is used to connect with clients or master.
-		self.log = false  // Log or not
+		self.name = ''; // Name of RoomManager
+		self.maxRoom = 50; // Limits the rooms
+		self.pubPort = 3030; // Default public port. This is used to connect with clients or master.
+		self.log = false;  // Log or not
 	};
 	
 	if(_.isUndefined(options)) {

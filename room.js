@@ -4,7 +4,7 @@ var util = require("util");
 var crypto = require('crypto');
 var Buffers = require('buffers');
 var _ = require('underscore');
-var bw = require ("buffered-writer");
+var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./socket.js');
 var BufferedFile = require("./bufferedfile.js");
@@ -12,24 +12,24 @@ var BufferedFile = require("./bufferedfile.js");
 function Room(options) {
 	events.EventEmitter.call(this);
 	
-	var defaultOptions = new function() {
+	var defaultOptions = new function () {
 		var self = this;
-		self.name = '',
+		self.name = '';
 		self.canvasSize = {
 			width: 720,
 			height: 480
-		},
-		self.password = '', // for private room
-		self.maxLoad = 5,
-		self.welcomemsg = '',
-		self.emptyclose = false,
-		self.permanent = false,
-		self.expiration = 0, // 0 for limitless
-		self.salt = '',
-		self.log = false
+		};
+		self.password = ''; // for private room
+		self.maxLoad = 5;
+		self.welcomemsg = '';
+		self.emptyclose = false;
+		self.permanent = false;
+		self.expiration = 0; // 0 for limitless
+		self.salt = '';
+		self.log = false;
 	};
 	
-	if(_.isUndefined(options)) {
+	if (_.isUndefined(options)) {
 		var options = {};
 	}
 	var op = _.defaults(options, defaultOptions);
@@ -137,7 +137,6 @@ function Room(options) {
 	});
 	
 	room.cmdSocket = new socket.SocketServer({
-		// waitComplete: false,
 		autoBroadcast: false,
 		useAlternativeParser: function(cli, buf) {
 				var obj = JSON.parse(buf.toString());
@@ -182,13 +181,23 @@ function Room(options) {
 								dataport: room.ports().dataPort,
 								msgport: room.ports().msgPort,
 								size: room.options.canvasSize,
-								}
+								clientid: function(){
+									var hash = crypto.createHash('sha1');
+									hash.update(room.options.name + obj['name'] + room.options.salt
+												,'utf8');
+									hash = hash.digest('hex');
+									cli['clientid'] = hex;
+									return hash;
+								}()
+							}
 						};
 						var jsString = JSON.stringify(ret);
 						room.cmdSocket.sendData(cli, new Buffer(jsString));
+						cli['username'] = obj['name'];
 						return;
 						break;
 					case 'close':
+						// check signed key
 						if(!obj['key'] || !_.isString(obj['key'])){
 							var ret = {
 								response: 'close',
@@ -213,7 +222,8 @@ function Room(options) {
 								jsString = JSON.stringify(ret_all);
 								console.log(jsString);
 								room.cmdSocket.broadcastData(new Buffer(jsString));
-								room.close();
+								// room.close();
+								room.options.emptyclose = true;
 							}
 						}
 						break;
@@ -248,6 +258,27 @@ function Room(options) {
 								room.cmdSocket.sendData(cli, new Buffer(jsString));
 							}
 						}
+						break;
+					case 'onlinelist':
+						var people = [];
+						_.each(room.cmdSocket.clients, function(va) {
+							if(va['username']){
+								people.push({
+									'name': va['username']
+								});
+							}
+						});
+						if(!people.length){
+							break;
+						}
+					
+						var ret = {
+							response: 'onlinelist',
+							result: true,
+							onlinelist: people
+						};
+						var jsString = JSON.stringify(ret);
+						room.cmdSocket.sendData(cli, new Buffer(jsString));
 						break;
 				}
 		}
