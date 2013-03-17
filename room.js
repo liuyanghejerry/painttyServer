@@ -183,10 +183,13 @@ function Room(options) {
 								size: room.options.canvasSize,
 								clientid: function(){
 									var hash = crypto.createHash('sha1');
-									hash.update(room.options.name + obj['name'] + room.options.salt
+									hash.update(room.options.name 
+												+ obj['name'] 
+												+ room.options.salt
+												+ (new Date()).getTime()
 												,'utf8');
 									hash = hash.digest('hex');
-									cli['clientid'] = hex;
+									cli['clientid'] = hash;
 									return hash;
 								}()
 							}
@@ -260,11 +263,22 @@ function Room(options) {
 						}
 						break;
 					case 'onlinelist':
+						if(!obj['clientid']){
+							break;
+						}
+						console.log(obj['clientid']);
+						if( !_.findWhere(room.cmdSocket.clients, 
+							{'clientid': obj['clientid']}) ){
+							break;
+						}
+						
+
 						var people = [];
 						_.each(room.cmdSocket.clients, function(va) {
-							if(va['username']){
+							if(va['username'] && va['clientid']){
 								people.push({
-									'name': va['username']
+									'name': va['username'],
+									'clientid': va['clientid']
 								});
 							}
 						});

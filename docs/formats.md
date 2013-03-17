@@ -163,7 +163,12 @@ Notice, `password` is a String, not integer or others.
 		info: {
 			historysize: 10240,
 			dataport: 8086,
-			msgport: 8087
+			msgport: 8087,
+			size: {
+				width: 720,
+				height: 480
+			},
+			clientid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 		}
 	}
 	
@@ -227,7 +232,73 @@ The `reason` can be:
 
 * 500: closed by room or room manager
 * 501: closed by room owner
+
+#### Clear Layers
+
+At present, there's no way to clear single layer in the history. The only option is to clear all layers.
+
+To clear all layers, room owner need to send such message:
+
+	{
+		request: 'clearall',
+		key: ''
+	}
 	
+Then server may return a message contains a result:
+
+	{
+		response: 'clearall',
+		result: true
+	}
+
+Like close room, the only reason for a failed request from server is that the owner send a wrong key. So we don't really need a errcode:
+
+	{
+		response: 'clearall',
+		result: false
+	}
+	
+### Room interaction
+
+Interaction between client and room can be achieved via command socket or channal. For security reason, each request needs a `clientid`. If recieved `clientid` is unknown, the request may be abandoned.
+
+#### Query Online Members
+
+Query online members in room is fairly simple as sending a request.
+
+	{
+		request: 'onlinelist',
+		clientid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
+	}
+
+And server may return:
+
+	{
+		response: 'onlinelist',
+		result: true,
+		onlinelist: [
+			{
+				name: 'someone'
+			},
+			{
+				name: 'others',
+			}
+		]
+	}
+	
+Or if any error:
+
+	{
+		response: 'onlinelist',
+		result: false,
+		errcode: 600
+	}
+	
+`errcode` can be:
+
+* 600: unknown error.
+* 601: room is closed already. Note, this may happen because room is closed when room owner request to close, but the close state lasts to no one stays in room.
+
 ### Painting actions
 
 #### Draw Point
