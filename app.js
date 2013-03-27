@@ -1,10 +1,11 @@
+var heapdump = require('heapdump');
 var _ = require('underscore');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
 var express = require('express');
 var httpServer = express();
 
-var roomManager = new RoomManager({name: 'rmmgr', pubPort: 10086});
+var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
 
 roomManager.start();
 

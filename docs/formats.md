@@ -315,13 +315,12 @@ Or if any error:
 				color: {
 					red: 0,
 					green: 0,
-					blue: 0,
-					alpha: 100
+					blue: 0
 				},
 				name: "Brush"
 			},
 			layer: "layer0",
-			userid: 2459565876494606
+			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 		}
 	}
 
@@ -340,22 +339,19 @@ Or if any error:
 			},
 			brush: {
 				width: 10,
-				color: color: {
+				color: {
 					red: 255,
 					green: 255,
-					blue: 255,
-					alpha: 20
+					blue: 255
 				},
 				name: "Brush"
 			},
 			layer: "layer1",
-			userid: 5123565876494606
+			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 		}
 	}
 	
 <s>Notice, QColor is a temporary way to store color. RGB seems to be the best way to store and transfer, but on client, we still have a HSV model. Thus, this is not the best time to talk about it. </s>
-
-Color now is split to four value, named RGBA. They're all between 0 to 255.
 
 ### Text Message
 
