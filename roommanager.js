@@ -249,6 +249,8 @@ function RoomManager(options) {
 						}
 						var canvasWidth = infoObj['size']['width'];
 						var canvasHeight = infoObj['size']['height'];
+						// constrain mega canvas.
+						canvasWidth = (canvasWidth + canvasHeight) > 12960?0:canvasWidth;
 						if(!canvasWidth || !canvasHeight){
 							var ret = {
 								response: 'newroom',
