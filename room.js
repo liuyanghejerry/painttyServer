@@ -59,6 +59,14 @@ function Room(options) {
 	hashed.update(hash_source, 'utf8');					
 	room.signed_key = hashed.digest('hex');
 	
+	function prepareCheckoutTimer() {
+		if(room.options.expiration) {
+			room.checkoutTimer = setTimeout(function onTimeout() {
+				room.options.emptyclose = true;
+			}, room.options.expiration * 3600*1000);
+		}
+	}();
+	
 	room.dataFile = function() {
 		fs.exists('./data/room/', function (exists) {
 		  if(!exists){
@@ -74,7 +82,7 @@ function Room(options) {
 	room.dataFileSize = 0;
 	var bf = new BufferedFile({
 				fileName: room.dataFile,
-				bufferSize: 1024*1024*5,
+				bufferSize: 1024*1024*2,
 				writeCycle: 0
 			});
 	
@@ -293,6 +301,33 @@ function Room(options) {
 						};
 						var jsString = JSON.stringify(ret);
 						room.cmdSocket.sendData(cli, new Buffer(jsString));
+						break;
+					case 'checkout':
+						if(!obj['key'] || !_.isString(obj['key'])){
+							var ret = {
+								response: 'checkout',
+								result: false,
+								errcode: 701
+							};
+							var jsString = JSON.stringify(ret);
+							room.cmdSocket.sendData(cli, new Buffer(jsString));
+						}
+						if(obj['key'].toLowerCase() == room.signed_key.toLowerCase()){
+							if(room.checkoutTimer){
+								clearTimeout(room.checkoutTimer);
+								prepareCheckoutTimer();
+							}
+							var ret = {
+								response: 'checkout',
+								result: true,
+								cycle: room.options.expiration?
+										( room.options.expiration / (3600*1000) )
+										: 0
+							};
+							var jsString = JSON.stringify(ret);
+							room.cmdSocket.sendData(cli, new Buffer(jsString));
+						}
+						
 						break;
 				}
 		}

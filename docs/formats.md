@@ -194,6 +194,41 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 
 All room management actions need a signed key to prove that the actions are made by room owners.
 
+#### Checkout
+
+To ensure one room is still under control, server schedules a close action to room. Thus, room owner must checkout in time. Currently, 72 hours seems a good schedule time.
+
+client sends:
+
+	{
+		request: 'checkout',
+		key: ''
+	}
+	
+server returns:
+
+	{
+		response: 'checkout',
+		result: true,
+		cycle: 72
+	}
+	
+There's one new thing `cycle` here. Normally, remain time of a room is shown on the roomlist. But on some circumstances, `cycle` can be useful for room owner to know when to checkout next. Also, the unit of `cycle` is hour, not ms.
+
+Failure return:
+
+	{
+		response: 'checkout',
+		result: false,
+		errcode: 700
+	}
+	
+`errcode` table:
+
+* 700: unknown error
+* 701: wrong key
+* 702: timeout, which means too late.
+
 #### Close Room
 
 client sends:
