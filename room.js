@@ -65,7 +65,8 @@ function Room(options) {
 				room.options.emptyclose = true;
 			}, room.options.expiration * 3600*1000);
 		}
-	}();
+	};
+	prepareCheckoutTimer();
 	
 	room.dataFile = function() {
 		fs.exists('./data/room/', function (exists) {

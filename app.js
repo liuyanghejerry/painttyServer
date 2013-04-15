@@ -3,7 +3,7 @@ var _ = require('underscore');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
 var express = require('express');
-var httpServer = express();
+// var httpServer = express();
 
 var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
 

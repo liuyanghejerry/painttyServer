@@ -17,11 +17,13 @@ function Router(options) {
 }
 
 Router.prototype.reg = function(rule, request, handler) {
-	if ( !_.isString(rule) || !_.isString(requet) || !_.isFunction(handler) ) {
+	var self = this;
+	if ( !_.isString(rule) || !_.isString(request) || !_.isFunction(handler) ) {
 		return;
 	};
 	var newRule = {'rule': rule, 'request': request, 'handler': handler};
-	this.table.push(newRule);
+	self.table.push(newRule);
+	return self;
 }
 
 Router.prototype.message = function(msg) {
@@ -29,6 +31,10 @@ Router.prototype.message = function(msg) {
 	if( !_.isObject(msg) && !_.isEmpty(msg) ) {
 		return;
 	}
+
+	if (self.table.length < 1) {
+		return;
+	};
 
 	var rules = _.pluck(self.table, 'rule');
 	_.each(rules, function(ele, index, list) {
@@ -39,7 +45,12 @@ Router.prototype.message = function(msg) {
 			};
 		}
 	});
-	
+	return self;
+}
+
+Router.prototype.clear = function() {
+	this.table = [];
+	return this;
 }
 
 module.exports = Router;
