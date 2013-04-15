@@ -368,6 +368,7 @@ Room.prototype.start = function() {
     this.cmdSocket.listen();
     this.dataSocket.listen();
     this.msgSocket.listen();
+    return this;
 };
 
 Room.prototype.ports = function() {
@@ -388,6 +389,7 @@ Room.prototype.close = function() {
         fs.unlink(this.dataFile, function(){});
         fs.unlink(this.msgFile, function(){});
     }
+    return this;
 };
 
 Room.prototype.currentLoad = function() {

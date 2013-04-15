@@ -16,20 +16,20 @@ exports['Test Router'] = function(test){
             goods: 321
         }
     ];
-    ro_test.reg('action', 'add', function(msg) {
+    ro_test.reg('action', 'add', function(cli, msg) {
         test.ok(msg['goods'] == 123, "reg() in Router failed!");
-    }).reg('action', 'sub', function(msg) {
+    }).reg('action', 'sub', function(cli, msg) {
         test.ok(msg['goods'] == 321, "reg() in Router failed!");
         test.done();
     });
 
     _.each(message, function(ele) {
-        ro_test.message(ele);
+        ro_test.message(0, ele);
     });
 
     ro_test.clear();
 
     _.each(message, function(ele) {
-        ro_test.message(ele);
+        ro_test.message(0, ele);
     });    
 };

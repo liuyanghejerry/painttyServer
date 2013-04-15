@@ -70,7 +70,7 @@ function RoomManager(options) {
         var jsString = JSON.stringify(ret);
         r_self.pubServer.sendData(cli, new Buffer(jsString));
     }, self).reg('request', 'join', function(cli, obj) {
-        var r_self = this;
+        // var r_self = this;
         // cli.end();
     }, self).reg('request', 'newroom', function(cli, obj) {
         var r_self = this;
@@ -310,8 +310,7 @@ function RoomManager(options) {
             r_self.roomObjs[infoObj['name']] = room;
         }).on('close', function() {
             delete r_self.roomObjs[room.options.name];
-        });
-        room.start();
+        }).start();
     }, self);
 
     self.pubServer = new socket.SocketServer({
@@ -358,12 +357,14 @@ RoomManager.prototype.start = function() {
     // });
     
     this.pubServer.listen(this.op.pubPort);
+    return this;
 };
 
 RoomManager.prototype.stop = function() {
     _.each(self.roomObjs, function(item) {
         item.close();
     });
+    return this;
 };
 
 module.exports = RoomManager;
