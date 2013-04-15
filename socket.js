@@ -2,6 +2,7 @@ var util = require("util");
 var net = require('net');
 var Buffers = require('buffers');
 var _ = require('underscore');
+var logger = require('tracer').console();
 var common = require('./common.js');
 
 
@@ -49,16 +50,16 @@ function SocketServer(options) {
 				}
 			}
 		}).on('error', function(err) {
-			console.log('Error with socket!');
-			console.log(err);
+			logger.log('Error with socket!');
+			logger.log(err);
 			cli.isInError = true;
 			cli.destroy();
 			delete cli['socketBuf'];
 			delete cli['dataSize'];
 		});
 	}).on('error', function(err) {
-		console.log('Error with server!');
-		console.log(err);
+		logger.log('Error with server!');
+		logger.log(err);
 	});
 }
 
@@ -110,7 +111,7 @@ SocketServer.prototype.pack = function (data) {
 SocketServer.prototype.onData = function(cli, buffer) {
 	var server = this;
 	if(cli.isInError === true){
-		console.log('In error client data skipped.');
+		logger.log('In error client data skipped.');
 		return;
 	}
 	cli.socketBuf.push(buffer);
@@ -138,7 +139,7 @@ SocketServer.prototype.onData = function(cli, buffer) {
 	
 	while (true) {
 		if(cli.isInError === true){
-			console.log('In error client data skipped.');
+			logger.log('In error client data skipped.');
 			return;
 		}
 		
@@ -157,7 +158,7 @@ SocketServer.prototype.onData = function(cli, buffer) {
 			if(isCompressed) {
 				common.qUncompress(dataBlock, function(d, err) {
 					if(err){
-						console.log(err);
+						logger.log(err);
 						return;
 					}
 					server.options.useAlternativeParser(cli, d);

@@ -2,7 +2,7 @@ var _ = require('underscore');
 var Router = require('../router.js');
 var test = require('nodeunit');
 
-exports.testRouter = function(test){
+exports['Test Router'] = function(test){
     test.expect(2);
 
     var ro_test = new Router();
