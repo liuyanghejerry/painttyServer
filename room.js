@@ -334,7 +334,7 @@ function Room(options) {
     room.cmdSocket = new socket.SocketServer({
         autoBroadcast: false,
         useAlternativeParser: function(cli, buf) {
-                var obj = JSON.parse(buf.toString());
+                var obj = JSON.parse(buf);
                 room.router.message(cli, obj);
         }
     });

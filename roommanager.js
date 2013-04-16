@@ -3,7 +3,6 @@ var http = require('http');
 var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
-var msgpack = require('msgpack');
 var _ = require('underscore');
 var logger = require('tracer').console();
 var common = require('./common.js');
@@ -68,7 +67,7 @@ function RoomManager(options) {
         ret['roomlist'] = list;
         ret['result'] = true;
         logger.log(ret);
-        var jsString = msgpack.pack(ret);
+        var jsString = JSON.stringify(ret);
         r_self.pubServer.sendData(cli, new Buffer(jsString));
     }, self).reg('request', 'join', function(cli, obj) {
         // var r_self = this;
@@ -83,7 +82,7 @@ function RoomManager(options) {
                 errcode: 200
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -97,7 +96,7 @@ function RoomManager(options) {
                     errcode: 210
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -111,7 +110,7 @@ function RoomManager(options) {
                 errcode: 203
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -123,7 +122,7 @@ function RoomManager(options) {
                 errcode: 203
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -134,7 +133,7 @@ function RoomManager(options) {
                 errcode: 202
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -149,7 +148,7 @@ function RoomManager(options) {
                     errcode: 204
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -160,7 +159,7 @@ function RoomManager(options) {
                 errcode: 204
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -174,7 +173,7 @@ function RoomManager(options) {
                     errcode: 205
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -186,7 +185,7 @@ function RoomManager(options) {
                     errcode: 205
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -203,7 +202,7 @@ function RoomManager(options) {
                     errcode: 207
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -215,7 +214,7 @@ function RoomManager(options) {
                     errcode: 207
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -232,7 +231,7 @@ function RoomManager(options) {
                     errcode: 207
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -250,7 +249,7 @@ function RoomManager(options) {
                     errcode: 211
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -265,7 +264,7 @@ function RoomManager(options) {
                     errcode: 211
                 };
                 logger.log(ret);
-                var jsString = msgpack.pack(ret);
+                var jsString = JSON.stringify(ret);
                 r_self.pubServer.sendData(cli, new Buffer(jsString));
                 return;
             }
@@ -280,7 +279,7 @@ function RoomManager(options) {
                 errcode: 211
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
         }
@@ -306,7 +305,7 @@ function RoomManager(options) {
                 }
             };
             logger.log(ret);
-            var jsString = msgpack.pack(ret);
+            var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             r_self.roomObjs[infoObj['name']] = room;
         }).on('close', function() {
@@ -317,7 +316,7 @@ function RoomManager(options) {
     self.pubServer = new socket.SocketServer({
         autoBroadcast: false, 
         useAlternativeParser: function(cli, data) {
-            var obj = msgpack.unpack(data.toString());
+            var obj = JSON.parse(data);
             logger.log(obj);
             self.router.message(cli, obj);
         }
@@ -346,7 +345,7 @@ RoomManager.prototype.start = function() {
     // var req = http.request(options, function(res) {
       // common.log('Trying to get master address');
       // common.log('STATUS: ' + res.statusCode);
-      // common.log('HEADERS: ' + msgpack.pack(res.headers));
+      // common.log('HEADERS: ' + JSON.stringify(res.headers));
       // res.setEncoding('utf8');
       // res.on('data', function (chunk) {
         // common.log('BODY: ' + chunk);
