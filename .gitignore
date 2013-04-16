@@ -1,4 +1,3 @@
 *.data
 *.msg
-test.js
 /config/salt.key
