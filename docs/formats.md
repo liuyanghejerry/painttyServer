@@ -334,6 +334,17 @@ Or if any error:
 * 600: unknown error.
 * 601: room is closed already. Note, this may happen because room is closed when room owner request to close, but the close state lasts to no one stays in room.
 
+#### Notification
+
+Notification is message sent by server. Thus, notification can only be received by client.
+
+	{
+		action: 'notify',
+		content: '<span style="color: red">hello, I am server.</span>'
+	}
+
+Notice, notification IS HTML.
+
 ### Painting actions
 
 #### Draw Point
