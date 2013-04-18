@@ -120,7 +120,14 @@ BufferedFile.prototype.clearAll = function (fn) {
     if(bf.buf.length > 0){
         bf.buf = new Buffers();
     }
-    fs.truncate(bf.op.fileName, 0, function() {});
+    fs.truncate(bf.op.fileName, 0, function(err) {
+        if(err) {
+            logger.log(err);
+        }
+        if (fn && _.isFunction(fn)) {
+            fn();
+        };
+    });
 };
 
 module.exports = BufferedFile;
