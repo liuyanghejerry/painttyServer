@@ -4,7 +4,7 @@ var fs = require('fs');
 var util = require("util");
 var Buffers = require('buffers');
 var _ = require('underscore');
-var bw = require ("buffered-writer");
+// var bw = require ("buffered-writer");
 var logger = require('tracer').console();
 
 
@@ -30,13 +30,13 @@ function BufferedFile(options) {
         
       // }
     // });
-if(bf.op.writeCycle != 0) {
-    bf.timer = setInterval(function() {
-        bf.writeToDisk();
-    }, bf.op.writeCycle);
-}
-bf.buf = new Buffers();
-bf.writtenSize = 0;
+    if(bf.op.writeCycle != 0) {
+        bf.timer = setInterval(function() {
+            bf.writeToDisk();
+        }, bf.op.writeCycle);
+    }
+    bf.buf = new Buffers();
+    bf.writtenSize = 0;
 }
 
 util.inherits(BufferedFile, events.EventEmitter);
@@ -45,16 +45,23 @@ BufferedFile.prototype.writeToDisk = function (fn) {
     if(this.buf.length < 1){
         return;
     }
-    bw.open(this.op.fileName, {append: true})
-    .on('error', function(err) {
-        logger.log(err);
-    })
-    .write(this.buf.toBuffer())
-    .close(function() {
+    // bw.open(this.op.fileName, {append: true})
+    //     .on('error', function(err) {
+    //         logger.log(err);
+    //     })
+    //     .write(this.buf.toBuffer())
+    //     .close(function() {
+    //         if( fn && _.isFunction(fn) ){
+    //             return fn;
+    //         }
+    //     }());
+    // DEBUG: use native function in node.js instead
+    fs.appendFile(this.op.fileName, this.buf.toBuffer(), function(err) {
+        if(err) logger.log(err);
         if( fn && _.isFunction(fn) ){
-            return fn;
+            return fn();
         }
-    }());
+    });
     this.buf = new Buffers();
     if(this.op.debug){
         logger.log('Write back!');
@@ -83,13 +90,13 @@ BufferedFile.prototype.readAll = function (fn) {
                   if (err){
                     logger.log(err);
                     return;
-                }
-                if( fn && _.isFunction(fn) ){
+                  }
+                  if( fn && _.isFunction(fn) ){
                     fn(data);
-                }
+                  }
+                });
+              }
             });
-            }
-        });
         });
     }else{
         fs.exists(bf.op.fileName, function (exists) {
@@ -98,13 +105,13 @@ BufferedFile.prototype.readAll = function (fn) {
               if (err){
                 logger.log(err);
                 return;
-            }
-            if( fn && _.isFunction(fn) ){
+              }
+              if( fn && _.isFunction(fn) ){
                 fn(data);
-            }
+              }
+            });
+          }
         });
-        }
-    });
     }
 };
 
