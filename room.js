@@ -142,7 +142,7 @@ function Room(options) {
                     '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
                     '如果您在使用中有任何疑问，'+
                     '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
-        room.bradcastMessage(send_msg);
+        room.cmdSocket.sendData(send_msg);
         if(room.options.welcomemsg.length) {
             room.msgSocket.sendData(con, JSON.stringify({
                 content: room.options.welcomemsg+'\n'
