@@ -356,7 +356,7 @@ RoomManager.prototype.start = function() {
       // common.log('problem with request: ' + e.message);
     // });
     
-    this.pubServer.listen(this.op.pubPort);
+    this.pubServer.listen(this.op.pubPort, '::'); // this will support both ipv6 and ipv4 address
     return this;
 };
 

@@ -131,18 +131,20 @@ function Room(options) {
                 }
             }
         });
-        // TODO: use cmd channal
-        // room.msgSocket.sendData(con, JSON.stringify({
-        //     content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n'+
-        //             '如果您在使用中有任何疑问，'+
-        //             '请在茶绘君贴吧留言：'+
-        //             'http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD \n'
-        // }));
-        var send_msg = '<p style="font-weight:bold;">欢迎使用'+
-                    '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
+        
+        room.msgSocket.sendData(con, JSON.stringify({
+            content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n'+
                     '如果您在使用中有任何疑问，'+
-                    '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
-        room.cmdSocket.sendData(send_msg);
+                    '请在茶绘君贴吧留言：'+
+                    'http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD \n'
+        }));
+        // TODO: use cmd channal
+        // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
+        //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
+        //             '如果您在使用中有任何疑问，'+
+        //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
+        // BUG: use con will send msg into msgSocket, not cmdSocket
+        // room.notify(con, send_msg);
         if(room.options.welcomemsg.length) {
             room.msgSocket.sendData(con, JSON.stringify({
                 content: room.options.welcomemsg+'\n'
@@ -370,9 +372,9 @@ Room.prototype.start = function() {
         fs.unlink(this.dataFile, function(){});
         fs.unlink(this.msgFile, function(){});
     }
-    this.cmdSocket.listen();
-    this.dataSocket.listen();
-    this.msgSocket.listen();
+    this.cmdSocket.listen(0, '::'); // this will support both ipv6 and ipv4 address
+    this.dataSocket.listen(0, '::');
+    this.msgSocket.listen(0, '::');
     return this;
 };
 
@@ -401,6 +403,18 @@ Room.prototype.currentLoad = function() {
     // do not count cmdSocket because it's a public socket
     return Math.max(this.dataSocket.clients.length,
         this.msgSocket.clients.length);
+};
+
+Room.prototype.notify = function(con, content) {
+    var self = this;
+    var sendContent = {
+        action: 'notify',
+        'content': content
+    };
+    self.cmdSocket.sendData(con, JSON.stringify(sendContent));
+    logger.log('cmdSocket: ');
+    logger.log(self.cmdSocket);
+    logger.log(sendContent);
 };
 
 Room.prototype.bradcastMessage = function(content) {
