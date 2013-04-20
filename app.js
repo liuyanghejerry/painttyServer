@@ -1,13 +1,30 @@
+var cluster = require('cluster');
+var numCPUs = require('os').cpus().length;
 var heapdump = require('heapdump');
 var _ = require('underscore');
+var logger = require('tracer').console();
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
-var express = require('express');
+// var express = require('express');
 // var httpServer = express();
 
-var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
 
-roomManager.start();
+if (cluster.isMaster) {
+  // Fork workers.
+  for (var i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', function(worker, code, signal) {
+    logger.log('worker ' + worker.process.pid + ' died');
+  });
+} else {
+  var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
+  roomManager.start();
+}
+
+
+
 
 // httpServer.get('/', function(req, res) {
     // var list = [];

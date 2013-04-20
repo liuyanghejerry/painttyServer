@@ -1,5 +1,5 @@
 var events = require('events');
-var http = require('http');
+// var http = require('http');
 var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
@@ -305,6 +305,9 @@ function RoomManager(options) {
                 }
             };
             logger.log(ret);
+            logger.log(room.msgSocket.address());
+            logger.log(room.dataSocket.address());
+            logger.log(room.cmdSocket.address());
             var jsString = JSON.stringify(ret);
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             r_self.roomObjs[infoObj['name']] = room;

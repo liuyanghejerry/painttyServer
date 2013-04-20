@@ -1,5 +1,5 @@
 var util = require("util");
-var net = require('net');
+var net = require('net-cluster');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var logger = require('tracer').console();
