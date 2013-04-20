@@ -268,6 +268,7 @@ function Room(options) {
                 jsString = JSON.stringify(ret_all);
                 r_room.cmdSocket.broadcastData(new Buffer(jsString));
                 bf.clearAll();
+                r_room.dataFileSize = 0;
             }else{
                 var ret = {
                     response: 'clearall',
