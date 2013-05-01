@@ -11,7 +11,7 @@ var RoomManager = require('./roommanager.js');
 
 if (cluster.isMaster) {
   // Fork workers.
-  for (var i = 0; i < numCPUs; i++) {
+  for (var i = 0; i < numCPUs+1; i++) {
     cluster.fork();
   }
 

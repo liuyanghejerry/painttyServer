@@ -141,7 +141,10 @@ function Room(options) {
     });
 
     room.msgSocket.sendData(con, JSON.stringify({
-      content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n' + '如果您在使用中有任何疑问，' + '请在茶绘君贴吧留言：' + 'http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD \n'
+      content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n' 
+      + '如果您在使用中有任何疑问，' 
+      + '请在茶绘君贴吧留言：'
+       + 'http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD \n'
     }));
     // TODO: use cmd channal
     // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
