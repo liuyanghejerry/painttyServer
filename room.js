@@ -1,5 +1,6 @@
 var events = require('events');
 var fs = require('fs');
+var cluster = require('cluster');
 var util = require("util");
 var crypto = require('crypto');
 var Buffers = require('buffers');
@@ -125,14 +126,24 @@ function Room(options) {
     bf.readAll(function(da) {
       con.write(da);
     });
+    if (cluster.isWorker) {
+      cluster.worker.send({
+        'message': 'loadchange',
+        'currentLoad': room.currentLoad();
+      });
+    };
   });
 
   room.msgSocket = new socket.SocketServer();
   room.msgSocket.maxConnections = room.options.maxLoad;
-  room.msgSocket.on('connection',
-  function(con) {
-    con.on('end',
-    function() {
+  room.msgSocket.on('connection', function(con) {
+    con.on('end', function() {
+      if (cluster.isWorker) {
+        cluster.worker.send({
+          'message': 'loadchange',
+          'currentLoad': room.currentLoad();
+        });
+      };
       if (room.options.emptyclose) {
         if (room.currentLoad() <= 1) {
           room.close();

@@ -45,6 +45,7 @@ function RoomManager(options) {
   });
 
   self.roomObjs = {};
+  self.roomInfos = {};
   self.router = new Router();
   self._ispubServerConnected = false;
   self._isRegSocketConnected = false;
@@ -54,15 +55,15 @@ function RoomManager(options) {
     var r_self = this;
     var ret = {};
     var list = [];
-    _.each(r_self.roomObjs, function(item) {
+    _.each(r_self.roomInfos, function(item) {
       if (_.isUndefined(item)) return;
       var r = {
-        cmdport: item.cmdSocket.address().port,
+        cmdport: item.cmdPort,
         serveraddress: r_self.pubServer.address().address,
-        maxload: item.options.maxLoad,
-        currentload: item.currentLoad(),
-        name: item.options.name,
-        'private': item.options.password.length > 0
+        maxload: item.maxLoad,
+        currentload: item.currentLoad,
+        name: item.name,
+        'private': item.password.length > 0
       };
       // logger.log(r);
       list.push(r);
@@ -97,7 +98,7 @@ function RoomManager(options) {
 
     // amount of room limit begin
     if (r_self.op.maxRoom) {
-      if (r_self.roomObjs.length > r_self.op.maxRoom) {
+      if (r_self.roomInfos.length > r_self.op.maxRoom) {
         var ret = {
           response: 'newroom',
           result: false,
@@ -134,7 +135,7 @@ function RoomManager(options) {
       r_self.pubServer.sendData(cli, new Buffer(jsString));
       return;
     }
-    if (r_self.roomObjs[name]) {
+    if (r_self.roomInfos[name]) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -318,8 +319,23 @@ function RoomManager(options) {
       var jsString = JSON.stringify(ret);
       r_self.pubServer.sendData(cli, new Buffer(jsString));
       r_self.roomObjs[infoObj['name']] = room;
+      var infoBlock = {
+        cmdPort: info['cmdPort'],
+        name: info['name'],
+        maxLoad: info['maxLoad'],
+        password: info['key'],
+        currentLoad: 0
+      };
+      r_self.roomInfos[infoObj['name']] = infoBlock;
+      if (cluster.isWorker) {
+        cluster.worker.send({
+          'message': 'newroom',
+          'info': infoBlock
+        });
+      };
     }).on('close', function() {
       delete r_self.roomObjs[room.options.name];
+      delete r_self.roomInfos[room.options.name];
     }).start();
   },
   self);
@@ -337,6 +353,16 @@ function RoomManager(options) {
     self._ispubServerConnected = true;
     self.emit('listening');
   });
+
+  if (cluster.isWorker) {
+    cluster.worker.on('message', function(msg) {
+      if (msg['message'] == 'newroom') {
+        self.roomInfos[msg['name']] = msg;
+      }else if (msg['message'] == 'loadchange') {
+        self.roomInfos[msg['name']]['currentLoad'] = msg['currentLoad'];
+      };
+    });
+  };
 
   // self.regSocket = new net.Socket();
 }
