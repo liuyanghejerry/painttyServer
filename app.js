@@ -10,13 +10,20 @@ var RoomManager = require('./roommanager.js');
 
 if (cluster.isMaster) {
   // Fork workers.
-  for (var i = 0; i < numCPUs+1; i++) {
-    cluster.fork();
+  for (var i = 0; i < numCPUs; i++) {
+    var worker = cluster.fork();
+    worker.on('message', function(msg) {
+      _.forEach(cluster.workers, function(ele, index, list) {
+            ele.send(msg);
+      });
+    });
   }
 
   cluster.on('exit', function(worker, code, signal) {
     logger.log('worker ' + worker.process.pid + ' died');
   });
+
+  
 } else {
   var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
   roomManager.start();

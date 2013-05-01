@@ -129,7 +129,10 @@ function Room(options) {
     if (cluster.isWorker) {
       cluster.worker.send({
         'message': 'loadchange',
-        'currentLoad': room.currentLoad();
+        'info': {
+          'name': room.options.name,
+          'currentLoad': room.currentLoad()
+        }
       });
     };
   });
@@ -141,7 +144,10 @@ function Room(options) {
       if (cluster.isWorker) {
         cluster.worker.send({
           'message': 'loadchange',
-          'currentLoad': room.currentLoad();
+          'info': {
+            'name': room.options.name,
+            'currentLoad': room.currentLoad()
+          }
         });
       };
       if (room.options.emptyclose) {
@@ -382,10 +388,25 @@ function Room(options) {
         maxLoad: room.options.maxLoad,
         currentLoad: room.currentLoad(),
         name: room.options.name,
-        key: room.signed_key
+        key: room.signed_key,
+        'private': room.options.password.length > 0
       });
     }
   };
+
+  function uploadCurrentLoad() {
+    if (cluster.isWorker) {
+      cluster.worker.send({
+        'message': 'loadchange',
+        'info':{
+          'name': room.options.name,
+          'currentLoad': room.currentLoad()
+        }
+      })
+    };
+  }
+
+  room.uploadCurrentLoadTimer = setInterval(uploadCurrentLoad, 1000*10);
 
   room.dataSocket.on('listening', tmpF);
   room.cmdSocket.on('listening', tmpF);
@@ -417,14 +438,24 @@ Room.prototype.ports = function() {
 
 Room.prototype.close = function() {
   logger.log('Room.close()');
+  var self = this;
+  clearInterval(self.uploadCurrentLoadTimer);
   this.emit('close');
-  this.cmdSocket.close();
-  this.dataSocket.close();
-  this.msgSocket.close();
-  if (!this.options.permanent) {
-    fs.unlink(this.dataFile,
+  if (cluster.isWorker) {
+    cluster.worker.send({
+      'message': 'roomclose',
+      'info':{
+        'name': self.options.name
+      }
+    })
+  };
+  self.cmdSocket.close();
+  self.dataSocket.close();
+  self.msgSocket.close();
+  if (!self.options.permanent) {
+    fs.unlink(self.dataFile,
     function() {});
-    fs.unlink(this.msgFile,
+    fs.unlink(self.msgFile,
     function() {});
   }
   return this;

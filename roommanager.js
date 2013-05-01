@@ -63,7 +63,7 @@ function RoomManager(options) {
         maxload: item.maxLoad,
         currentload: item.currentLoad,
         name: item.name,
-        'private': item.password.length > 0
+        'private': item['private']
       };
       // logger.log(r);
       list.push(r);
@@ -323,7 +323,7 @@ function RoomManager(options) {
         cmdPort: info['cmdPort'],
         name: info['name'],
         maxLoad: info['maxLoad'],
-        password: info['key'],
+        'private': info['private'],
         currentLoad: 0
       };
       r_self.roomInfos[infoObj['name']] = infoBlock;
@@ -356,10 +356,16 @@ function RoomManager(options) {
 
   if (cluster.isWorker) {
     cluster.worker.on('message', function(msg) {
+      logger.log('cluster msg: ');
+      logger.log(msg);
       if (msg['message'] == 'newroom') {
-        self.roomInfos[msg['name']] = msg;
+        self.roomInfos[msg['info']['name']] = msg['info'];
       }else if (msg['message'] == 'loadchange') {
-        self.roomInfos[msg['name']]['currentLoad'] = msg['currentLoad'];
+        if (self.roomInfos[msg['info']['name']]) {
+          self.roomInfos[msg['info']['name']]['currentLoad'] = msg['info']['currentLoad'];
+        };
+      }else if (msg['message'] == 'roomclose') {
+        delete self.roomInfos[msg['info']['name']];
       };
     });
   };
