@@ -51,7 +51,7 @@ Possible value for `platform`:
 
 * windows x86;
 * windows x64;
-* mac os x;
+* mac;
 
 These platform may support in future without guarantee:
 

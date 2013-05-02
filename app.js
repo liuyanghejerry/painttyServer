@@ -8,6 +8,12 @@ var RoomManager = require('./roommanager.js');
 // var express = require('express');
 // var httpServer = express();
 
+// this makes it possible to run, even there's uncaught exception.
+// FIXME: However, this may also drive program into unstable state. Only for debug.
+process.on('uncaughtException', function(err) {
+  logger.error(err);
+});
+
 if (cluster.isMaster) {
   // Fork workers.
   function forkWorker() {
