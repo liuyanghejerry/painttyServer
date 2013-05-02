@@ -360,9 +360,9 @@ function RoomManager(options) {
       logger.log(msg);
       if (msg['message'] == 'newroom') {
         self.roomInfos[msg['info']['name']] = msg['info'];
-      }else if (msg['message'] == 'loadchange') {
+      }else if (msg['message'] == 'roominfo') {
         if (self.roomInfos[msg['info']['name']]) {
-          self.roomInfos[msg['info']['name']]['currentLoad'] = msg['info']['currentLoad'];
+          self.roomInfos[msg['info']['name']] = msg['info'];
         };
       }else if (msg['message'] == 'roomclose') {
         delete self.roomInfos[msg['info']['name']];

@@ -394,19 +394,22 @@ function Room(options) {
     }
   };
 
-  function uploadCurrentLoad() {
+  function uploadCurrentInfo() {
     if (cluster.isWorker) {
       cluster.worker.send({
-        'message': 'loadchange',
+        'message': 'roominfo',
         'info':{
           'name': room.options.name,
-          'currentLoad': room.currentLoad()
+          'cmdPort': room.cmdSocket.address().port,
+          'maxLoad': room.options.maxLoad,
+          'currentLoad': room.currentLoad(),
+          'private': room.options.password.length > 0
         }
-      })
+      });
     };
   }
 
-  room.uploadCurrentLoadTimer = setInterval(uploadCurrentLoad, 1000*10);
+  room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
 
   room.dataSocket.on('listening', tmpF);
   room.cmdSocket.on('listening', tmpF);
@@ -439,7 +442,7 @@ Room.prototype.ports = function() {
 Room.prototype.close = function() {
   logger.log('Room.close()');
   var self = this;
-  clearInterval(self.uploadCurrentLoadTimer);
+  clearInterval(self.uploadCurrentInfoTimer);
   this.emit('close');
   if (cluster.isWorker) {
     cluster.worker.send({
@@ -463,7 +466,8 @@ Room.prototype.close = function() {
 
 Room.prototype.currentLoad = function() {
   // do not count cmdSocket because it's a public socket
-  return Math.max(this.dataSocket.clients.length, this.msgSocket.clients.length);
+  return Math.max(this.dataSocket.clients.length, 
+    this.msgSocket.clients.length);
 };
 
 Room.prototype.notify = function(con, content) {
