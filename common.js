@@ -4,7 +4,7 @@ var fs = require('fs');
 var util = require("util");
 var Buffers = require('buffers');
 var _ = require('underscore');
-var logger = require('tracer').console();
+var logger = require('tracer').dailyfile({root:'./logs'});
 
 exports.qCompress = function (buffer, fn) {
   var buffers = new Buffers();
@@ -17,7 +17,7 @@ exports.qCompress = function (buffer, fn) {
   
   zlib.deflate(buffer, function(err, result) {
     if(err) {
-      logger.log(err);
+      logger.error(err);
       fn(result, err);
     }else{
       buffers.push(len_array);
@@ -31,7 +31,7 @@ exports.qUncompress = function (buffer, fnc) {
   var resized = buffer.slice(4, buffer.length);
   zlib.unzip(resized, function(err, result) {
     if(err) {
-      logger.log(err);
+      logger.error(err);
     }
     fnc(result, err);
   });

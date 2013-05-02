@@ -5,7 +5,7 @@ var util = require("util");
 var Buffers = require('buffers');
 var _ = require('underscore');
 // var bw = require ("buffered-writer");
-var logger = require('tracer').console();
+var logger = require('tracer').dailyfile({root:'./logs'});
 
 
 function BufferedFile(options) {

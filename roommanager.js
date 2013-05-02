@@ -5,7 +5,7 @@ var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
-var logger = require('tracer').console();
+var logger = require('tracer').dailyfile({root:'./logs'});
 var common = require('./common.js');
 var Router = require("./router.js");
 var socket = require('./socket.js');
@@ -23,6 +23,7 @@ function RoomManager(options) {
     self.maxRoom = 50; // Limits the rooms
     self.pubPort = 3030; // Default public port. This is used to connect with clients or master.
     self.log = false; // Log or not
+    self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died
   };
 
   if (_.isUndefined(options)) {
@@ -313,9 +314,6 @@ function RoomManager(options) {
         }
       };
       logger.log(ret);
-      logger.log(room.msgSocket.address());
-      logger.log(room.dataSocket.address());
-      logger.log(room.cmdSocket.address());
       var jsString = JSON.stringify(ret);
       r_self.pubServer.sendData(cli, new Buffer(jsString));
       r_self.roomObjs[infoObj['name']] = room;
@@ -324,6 +322,7 @@ function RoomManager(options) {
         name: info['name'],
         maxLoad: info['maxLoad'],
         'private': info['private'],
+        'timestamp': (new Date()).getTime(),
         currentLoad: 0
       };
       r_self.roomInfos[infoObj['name']] = infoBlock;
@@ -356,8 +355,7 @@ function RoomManager(options) {
 
   if (cluster.isWorker) {
     cluster.worker.on('message', function(msg) {
-      logger.log('cluster msg: ');
-      logger.log(msg);
+      logger.log('cluster msg: ', msg);
       if (msg['message'] == 'newroom') {
         self.roomInfos[msg['info']['name']] = msg['info'];
       }else if (msg['message'] == 'roominfo') {
@@ -365,9 +363,27 @@ function RoomManager(options) {
           self.roomInfos[msg['info']['name']] = msg['info'];
         };
       }else if (msg['message'] == 'roomclose') {
-        delete self.roomInfos[msg['info']['name']];
+        if (self.roomInfos[msg['info']['name']]) {
+          delete self.roomInfos[msg['info']['name']];
+        };
       };
     });
+
+    function roomInfoRefresh() {
+      var now = (new Date()).getTime();
+      logger.debug('roomInfo refreshed');
+      _.each(self.roomInfos, function(ele, ind, list) {
+        logger.debug(ele['name'], ':', ele['timestamp']);
+        if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
+          if(list[ele['name']]){
+            logger.log(ele['name'], 'is timeout and deleted.');
+            delete list[ele['name']];
+          } 
+        }
+      });
+    }
+
+    self.roomInfoRefreshTimer = setInterval(roomInfoRefresh, self.op.roomInfoRefreshCycle);
   };
 
   // self.regSocket = new net.Socket();
@@ -400,6 +416,8 @@ RoomManager.prototype.start = function() {
 };
 
 RoomManager.prototype.stop = function() {
+  var self = this;
+  clearInterval(self.roomInfoRefreshTimer);
   _.each(self.roomObjs,
   function(item) {
     item.close();

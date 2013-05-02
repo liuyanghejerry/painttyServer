@@ -8,6 +8,8 @@ var socket = require('./socket.js');
 var Room = require('./room.js');
 var RoomManager = require('./roommanager.js');
 
+// TODO: whole file
+
 function Master(options) {
     events.EventEmitter.call(this);
     

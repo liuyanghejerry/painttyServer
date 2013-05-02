@@ -2,7 +2,7 @@ var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 var heapdump = require('heapdump');
 var _ = require('underscore');
-var logger = require('tracer').console();
+var logger = require('tracer').dailyfile({root:'./logs'});
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
 // var express = require('express');
@@ -10,7 +10,7 @@ var RoomManager = require('./roommanager.js');
 
 if (cluster.isMaster) {
   // Fork workers.
-  for (var i = 0; i < numCPUs; i++) {
+  function forkWorker() {
     var worker = cluster.fork();
     worker.on('message', function(msg) {
       _.forEach(cluster.workers, function(ele, index, list) {
@@ -19,8 +19,13 @@ if (cluster.isMaster) {
     });
   }
 
+  for (var i = 0; i < numCPUs; i++) {
+    forkWorker();
+  }
+
   cluster.on('exit', function(worker, code, signal) {
-    logger.log('worker ' + worker.process.pid + ' died');
+    logger.error('worker ', worker.process.pid, ' died');
+    forkWorker();
   });
 
   

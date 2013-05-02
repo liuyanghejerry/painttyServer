@@ -5,7 +5,7 @@ var util = require("util");
 var crypto = require('crypto');
 var Buffers = require('buffers');
 var _ = require('underscore');
-var logger = require('tracer').console();
+var logger = require('tracer').dailyfile({root:'./logs'});
 var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./socket.js');
@@ -68,7 +68,11 @@ function Room(options) {
   function prepareCheckoutTimer(r_room) {
     if (r_room.options.expiration) {
       r_room.checkoutTimer = setTimeout(function onTimeout() {
-        r_room.options.emptyclose = true;
+        if (r_room.currentLoad() > 0) {
+          r_room.options.emptyclose = true;
+        }else{
+          r_room.close();
+        }       
       },
       r_room.options.expiration * 3600 * 1000);
     }
@@ -311,7 +315,7 @@ function Room(options) {
     if (!obj['clientid']) {
       return;
     }
-    logger.log('onlinelist request by ' + obj['clientid']);
+    logger.log('onlinelist request by', obj['clientid']);
     if (!_.findWhere(r_room.cmdSocket.clients, {
       'clientid': obj['clientid']
     })) {
@@ -403,7 +407,8 @@ function Room(options) {
           'cmdPort': room.cmdSocket.address().port,
           'maxLoad': room.options.maxLoad,
           'currentLoad': room.currentLoad(),
-          'private': room.options.password.length > 0
+          'private': room.options.password.length > 0,
+          'timestamp': (new Date()).getTime()
         }
       });
     };
@@ -440,9 +445,10 @@ Room.prototype.ports = function() {
 };
 
 Room.prototype.close = function() {
-  logger.log('Room.close()');
   var self = this;
+  logger.log('Room', self.options.name, 'is closed.');
   clearInterval(self.uploadCurrentInfoTimer);
+  clearTimeout(self.checkoutTimer);
   this.emit('close');
   if (cluster.isWorker) {
     cluster.worker.send({
@@ -477,9 +483,7 @@ Room.prototype.notify = function(con, content) {
     'content': content
   };
   self.cmdSocket.sendData(con, JSON.stringify(sendContent));
-  logger.log('cmdSocket: ');
-  logger.log(self.cmdSocket);
-  logger.log(sendContent);
+  logger.debug('cmdSocket: ', self.cmdSocket, sendContent);
 };
 
 Room.prototype.bradcastMessage = function(content) {
