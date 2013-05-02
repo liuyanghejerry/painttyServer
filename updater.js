@@ -1,9 +1,10 @@
 var events = require('events');
 var cluster = require('cluster');
+var numCPUs = require('os').cpus().length;
 var util = require("util");
 var fs = require('fs');
 var _ = require('underscore');
-var logger = require('tracer').dailyfile({root:'./logs'});
+var logger = require('tracer').dailyfile({root:'./logs/updater'});
 var common = require('./common.js');
 var Router = require("./router.js");
 var socket = require('./socket.js');
@@ -78,5 +79,33 @@ util.inherits(Updater, events.EventEmitter);
 // module.exports = Updater;
 
 Updater.prototype.start = function() {
-  //
+  this.pubServer.listen(this.options.pubPort, '::');
 };
+
+Updater.prototype.stop = function() {
+  this.pubServer.close();
+};
+
+function run() {
+  if (cluster.isMaster) {
+    // Fork workers.
+    function forkWorker() {
+      var worker = cluster.fork();
+    }
+
+    for (var i = 0; i < numCPUs; i++) {
+      forkWorker();
+    }
+
+    cluster.on('exit', function(worker, code, signal) {
+      logger.error('worker ', worker.process.pid, ' died');
+      forkWorker();
+    });
+  } else {
+    var upd = new Updater();
+    upd.start();
+  }
+
+};
+
+run();
