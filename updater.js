@@ -34,6 +34,7 @@ function Updater(options) {
   
   self.currentVersion = {
     version: '0.3',
+    // TODO: use a text file for changelog
     changelog: '',
     level: 1,
     url: {
@@ -46,7 +47,7 @@ function Updater(options) {
 
   self.router.reg('request', 'check', function(cli, obj) {
     var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows';
-    var ret = {
+    var info = {
       version: self.currentVersion['version'],
       changelog: self.currentVersion['changelog'],
       level: self.currentVersion['level'],
@@ -54,17 +55,24 @@ function Updater(options) {
     };
 
     if (platform == 'windows x86' || platform == 'windows x64') {
-      ret['url'] = self.currentVersion['url']['windows'];
+      info['url'] = self.currentVersion['url']['windows'];
     }else if (platform == 'mac') {
-      ret['url'] = self.currentVersion['url']['mac'];
+      info['url'] = self.currentVersion['url']['mac'];
     };
+    var ret = {
+      response: 'version',
+      result: true,
+      'info': info
+    }
 
     var jsString = JSON.stringify(ret);
     self.pubServer.sendData(cli, new Buffer(jsString));
+    // cli.end();
   });
 
   self.pubServer = new socket.SocketServer({
     autoBroadcast: false,
+    keepAlive: false,
     useAlternativeParser: function(cli, data) {
       var obj = JSON.parse(data);
       logger.log(obj);

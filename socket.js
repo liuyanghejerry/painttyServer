@@ -14,6 +14,7 @@ function SocketServer(options) {
     waitComplete: true,
     useAlternativeParser: false,
     compressed: true,
+    keepAlive: true,
     indebug: false
   };
   
@@ -30,7 +31,7 @@ function SocketServer(options) {
     cli.commandStarted = false;
     cli.isCompressed = false;
     cli.dataSize = 0;
-    cli.setKeepAlive(true);
+    cli.setKeepAlive(server.options.keepAlive);
     server.clients.push(cli);
     cli.on('close', function() {
       var index = server.clients.indexOf(cli);
