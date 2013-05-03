@@ -359,9 +359,7 @@ function RoomManager(options) {
       if (msg['message'] == 'newroom') {
         self.roomInfos[msg['info']['name']] = msg['info'];
       }else if (msg['message'] == 'roominfo') {
-        if (self.roomInfos[msg['info']['name']]) {
-          self.roomInfos[msg['info']['name']] = msg['info'];
-        };
+        self.roomInfos[msg['info']['name']] = msg['info'];
       }else if (msg['message'] == 'roomclose') {
         if (self.roomInfos[msg['info']['name']]) {
           delete self.roomInfos[msg['info']['name']];
