@@ -64,20 +64,28 @@ function SocketServer(options) {
 
 util.inherits(SocketServer, net.Server);
 
-SocketServer.prototype.sendData = function (cli, data) {
+SocketServer.prototype.sendData = function (cli, data, fn) {
   var server = this;
   if(this.options.compressed === true){
     common.qCompress(data, function(d) {
       var tmpData = new Buffer(1);
       tmpData[0] = 0x1;
       var r_data = Buffer.concat([tmpData, d]);
-      cli.write( server.pack(r_data) );
+      if ( _.isFunction(fn) ) {
+        cli.write( server.pack(r_data), fn );
+      }else{
+        cli.write( server.pack(r_data) );
+      }
     });
   }else{
     var tmpData = new Buffer(1);
     tmpData[0] = 0x0;
     var r_data = Buffer.concat([tmpData, data]);
-    cli.write( server.pack(r_data) );
+    if ( _.isFunction(fn) ) {
+      cli.write( server.pack(r_data), fn );
+    }else{
+      cli.write( server.pack(r_data) );
+    }
   }
 };
 

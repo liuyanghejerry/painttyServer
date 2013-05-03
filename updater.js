@@ -18,6 +18,12 @@ function Updater(options) {
     self.pubPort = 7071; // Default public port. This is used to connect with clients.
     self.log = false; // Log or not
     self.defFile = './updateinfo.js';
+    self.changelog = {
+      'en': './changelog/en.changelog',
+      'zh_cn': './changelog/zh_cn.changelog',
+      'zh_tw': './changelog/zh_tw.changelog',
+      'ja': './changelog/ja.changelog'
+    };
   };
 
   if (_.isUndefined(options)) {
@@ -31,9 +37,9 @@ function Updater(options) {
   //   function(curr, prev) {
   //   //
   // });
-  
-  self.currentVersion = {
-    version: '0.3',
+
+self.currentVersion = {
+  version: '0.3',
     // TODO: use a text file for changelog
     changelog: '',
     level: 1,
@@ -47,38 +53,55 @@ function Updater(options) {
 
   self.router.reg('request', 'check', function(cli, obj) {
     var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows';
-    var info = {
-      version: self.currentVersion['version'],
-      changelog: self.currentVersion['changelog'],
-      level: self.currentVersion['level'],
-      url: self.currentVersion['url']['windows']
-    };
+    var language = _.isString(obj['language']) && _.has(self.options.changelog, obj['language']) 
+    ? obj['language'].toLowerCase() : 'en';
+    fs.readFile(self.options.changelog[language], 
+      {
+        encoding: 'utf8',
+        flag: 'r'
+      },
+      function (err, data) {
+        if (err) {
+          logger.error(err);
+          cli.end();
+          return;
+        }
 
-    if (platform == 'windows x86' || platform == 'windows x64') {
-      info['url'] = self.currentVersion['url']['windows'];
-    }else if (platform == 'mac') {
-      info['url'] = self.currentVersion['url']['mac'];
-    };
-    var ret = {
-      response: 'version',
-      result: true,
-      'info': info
-    }
+        var info = {
+          version: self.currentVersion['version'],
+          changelog: data,
+          level: self.currentVersion['level'],
+          url: self.currentVersion['url']['windows']
+        };
 
-    var jsString = JSON.stringify(ret);
-    self.pubServer.sendData(cli, new Buffer(jsString));
-    // cli.end();
+        if (platform == 'windows x86' || platform == 'windows x64') {
+          info['url'] = self.currentVersion['url']['windows'];
+        }else if (platform == 'mac') {
+          info['url'] = self.currentVersion['url']['mac'];
+        };
+
+        var ret = {
+          response: 'version',
+          result: true,
+          'info': info
+        }
+
+        var jsString = JSON.stringify(ret);
+        self.pubServer.sendData(cli, new Buffer(jsString), function() {
+          cli.end();
+        });
+      });
   });
 
-  self.pubServer = new socket.SocketServer({
-    autoBroadcast: false,
-    keepAlive: false,
-    useAlternativeParser: function(cli, data) {
-      var obj = JSON.parse(data);
-      logger.log(obj);
-      self.router.message(cli, obj);
-    }
-  });
+self.pubServer = new socket.SocketServer({
+  autoBroadcast: false,
+  keepAlive: false,
+  useAlternativeParser: function(cli, data) {
+    var obj = JSON.parse(data);
+    logger.log(obj);
+    self.router.message(cli, obj);
+  }
+});
 
 }
 
@@ -101,7 +124,7 @@ function run() {
       var worker = cluster.fork();
     }
 
-    for (var i = 0; i < numCPUs; i++) {
+    for (var i = 0; i < numCPUs/2+1; i++) {
       forkWorker();
     }
 

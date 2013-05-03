@@ -44,7 +44,8 @@ painttyUpdater:
 
 	{
 		request: "version",
-		platform: "windows x86"
+		platform: "windows x86",
+		language: "zh_TW"
 	}
 
 Possible value for `platform`:
