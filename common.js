@@ -37,3 +37,24 @@ exports.qUncompress = function (buffer, fnc) {
   });
 };
 
+exports.jsonToString = function (j) {
+  try {
+    var str = JSON.stringify(j);
+    return str;
+  } 
+  catch(e) {
+    logger.error('Error in JSON', e);
+    return '{}';
+  }
+};
+
+exports.stringToJson = function (s) {
+  try {
+    var json = JSON.parse(s);
+    return json;
+  } 
+  catch(e) {
+    logger.error('Error in JSON', e);
+    return {};
+  }
+};

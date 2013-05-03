@@ -161,7 +161,7 @@ function Room(options) {
       }
     });
 
-    room.msgSocket.sendData(con, JSON.stringify({
+    room.msgSocket.sendData(con, common.jsonToString({
       content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n' 
       + '如果您在使用中有任何疑问，' 
       + '请在茶绘君贴吧留言：'
@@ -175,7 +175,7 @@ function Room(options) {
     // BUG: use con will send msg into msgSocket, not cmdSocket
     // room.notify(con, send_msg);
     if (room.options.welcomemsg.length) {
-      room.msgSocket.sendData(con, JSON.stringify({
+      room.msgSocket.sendData(con, common.jsonToString({
         content: room.options.welcomemsg + '\n'
       }));
     }
@@ -198,7 +198,7 @@ function Room(options) {
         errcode: 301
       };
       logger.log(ret);
-      var jsString = JSON.stringify(ret);
+      var jsString = common.jsonToString(ret);
       r_room.cmdSocket.sendData(cli, new Buffer(jsString));
       return;
     }
@@ -211,7 +211,7 @@ function Room(options) {
           errcode: 302
         };
         logger.log(ret);
-        var jsString = JSON.stringify(ret);
+        var jsString = common.jsonToString(ret);
         r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         return;
       }
@@ -235,7 +235,7 @@ function Room(options) {
       }
     };
     logger.log(ret);
-    var jsString = JSON.stringify(ret);
+    var jsString = common.jsonToString(ret);
     r_room.cmdSocket.sendData(cli, new Buffer(jsString));
     cli['username'] = obj['name'];
     return;
@@ -250,7 +250,7 @@ function Room(options) {
         result: false
       };
       logger.log(ret);
-      var jsString = JSON.stringify(ret);
+      var jsString = common.jsonToString(ret);
       r_room.cmdSocket.sendData(cli, new Buffer(jsString));
     } else {
       if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
@@ -259,7 +259,7 @@ function Room(options) {
           result: true
         };
         logger.log(ret);
-        var jsString = JSON.stringify(ret);
+        var jsString = common.jsonToString(ret);
         r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         var ret_all = {
           action: 'close',
@@ -267,7 +267,7 @@ function Room(options) {
             reason: 501
           }
         };
-        jsString = JSON.stringify(ret_all);
+        jsString = common.jsonToString(ret_all);
         logger.log(jsString);
         r_room.cmdSocket.broadcastData(new Buffer(jsString));
         r_room.options.emptyclose = true;
@@ -282,7 +282,7 @@ function Room(options) {
         response: 'clearall',
         result: false
       };
-      var jsString = JSON.stringify(ret);
+      var jsString = common.jsonToString(ret);
       r_room.cmdSocket.sendData(cli, new Buffer(jsString));
     } else {
       if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
@@ -290,12 +290,12 @@ function Room(options) {
           response: 'clearall',
           result: true
         };
-        var jsString = JSON.stringify(ret);
+        var jsString = common.jsonToString(ret);
         r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         var ret_all = {
           action: 'clearall',
         };
-        jsString = JSON.stringify(ret_all);
+        jsString = common.jsonToString(ret_all);
         r_room.cmdSocket.broadcastData(new Buffer(jsString));
         bf.clearAll();
         r_room.dataFileSize = 0;
@@ -304,7 +304,7 @@ function Room(options) {
           response: 'clearall',
           result: false
         };
-        var jsString = JSON.stringify(ret);
+        var jsString = common.jsonToString(ret);
         r_room.cmdSocket.sendData(cli, new Buffer(jsString));
       }
     }
@@ -342,7 +342,7 @@ function Room(options) {
       onlinelist: people
     };
     logger.log(ret);
-    var jsString = JSON.stringify(ret);
+    var jsString = common.jsonToString(ret);
     r_room.cmdSocket.sendData(cli, new Buffer(jsString));
   },
   room).reg('request', 'checkout',
@@ -355,7 +355,7 @@ function Room(options) {
         errcode: 701
       };
       logger.log(ret);
-      var jsString = JSON.stringify(ret);
+      var jsString = common.jsonToString(ret);
       r_room.cmdSocket.sendData(cli, new Buffer(jsString));
     }
     if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
@@ -369,7 +369,7 @@ function Room(options) {
         cycle: r_room.options.expiration ? r_room.options.expiration: 0
       };
       logger.log(ret);
-      var jsString = JSON.stringify(ret);
+      var jsString = common.jsonToString(ret);
       r_room.cmdSocket.sendData(cli, new Buffer(jsString));
     }
   },
@@ -378,7 +378,7 @@ function Room(options) {
   room.cmdSocket = new socket.SocketServer({
     autoBroadcast: false,
     useAlternativeParser: function(cli, buf) {
-      var obj = JSON.parse(buf);
+      var obj = common.stringToJson(buf);
       room.router.message(cli, obj);
     }
   });
@@ -482,7 +482,7 @@ Room.prototype.notify = function(con, content) {
     action: 'notify',
     'content': content
   };
-  self.cmdSocket.sendData(con, JSON.stringify(sendContent));
+  self.cmdSocket.sendData(con, common.jsonToString(sendContent));
   logger.debug('cmdSocket: ', self.cmdSocket, sendContent);
 };
 
@@ -492,7 +492,7 @@ Room.prototype.bradcastMessage = function(content) {
     action: 'notify',
     'content': content
   };
-  self.cmdSocket.broadcastData(JSON.stringify(sendContent));
+  self.cmdSocket.broadcastData(common.jsonToString(sendContent));
 };
 
 module.exports = Room;
