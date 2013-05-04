@@ -2,6 +2,7 @@ var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 var heapdump = require('heapdump');
 var _ = require('underscore');
+var domain = require('domain');
 var logger = require('tracer').dailyfile({root:'./logs'});
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
@@ -10,9 +11,9 @@ var RoomManager = require('./roommanager.js');
 
 // this makes it possible to run, even there's uncaught exception.
 // FIXME: However, this may also drive program into unstable state. Only for debug.
-process.on('uncaughtException', function(err) {
-  logger.error(err);
-});
+// process.on('uncaughtException', function(err) {
+//   logger.error(err);
+// });
 
 if (cluster.isMaster) {
   // Fork workers.
@@ -36,8 +37,15 @@ if (cluster.isMaster) {
 
   
 } else {
-  var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
-  roomManager.start();
+  var d = domain.create();
+  d.on('error', function(err) {
+    logger.error('Error in Worker:', err);
+  });
+  d.run(function() {
+    var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
+    roomManager.start();
+  });
+  
 }
 
 

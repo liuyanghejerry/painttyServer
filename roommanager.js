@@ -2,6 +2,7 @@ var events = require('events');
 var cluster = require('cluster');
 // var http = require('http');
 var util = require("util");
+var domain = require('domain');
 var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
@@ -294,63 +295,77 @@ function RoomManager(options) {
       return;
     }
     // canvasSize check end
-    var room = new Room({
-      'name': name,
-      'maxLoad': maxLoad,
-      'welcomemsg': welcomemsg,
-      'emptyclose': emptyclose,
-      'password': password,
-      'canvasSize': canvasSize,
-      'expiration': 72 // 72 hours to close itself
-    });
 
-    room.on('create', function(info) {
-      var ret = {
-        response: 'newroom',
-        result: true,
-        'info': {
-          port: info['cmdPort'],
-          key: info['key']
-        }
-      };
-      logger.log(ret);
-      var jsString = common.jsonToString(ret);
-      r_self.pubServer.sendData(cli, new Buffer(jsString));
-      r_self.roomObjs[infoObj['name']] = room;
-      var infoBlock = {
-        cmdPort: info['cmdPort'],
-        name: info['name'],
-        maxLoad: info['maxLoad'],
-        'private': info['private'],
-        'timestamp': (new Date()).getTime(),
-        currentLoad: 0
-      };
-      r_self.roomInfos[infoObj['name']] = infoBlock;
-      if (cluster.isWorker) {
-        cluster.worker.send({
-          'message': 'newroom',
-          'info': infoBlock
-        });
-      };
-    }).on('close', function() {
-      delete r_self.roomObjs[room.options.name];
-      delete r_self.roomInfos[room.options.name];
-    }).start();
+    var d = domain.create();
+    d.on('error', function(er) {
+      logger.error('Error in Domain:', er);
+    });
+    d.run(function() {
+      var room = new Room({
+        'name': name,
+        'maxLoad': maxLoad,
+        'welcomemsg': welcomemsg,
+        'emptyclose': emptyclose,
+        'password': password,
+        'canvasSize': canvasSize,
+        'expiration': 72 // 72 hours to close itself
+      });
+
+      room.on('create', function(info) {
+        var ret = {
+          response: 'newroom',
+          result: true,
+          'info': {
+            port: info['cmdPort'],
+            key: info['key']
+          }
+        };
+        logger.log(ret);
+        var jsString = common.jsonToString(ret);
+        r_self.pubServer.sendData(cli, new Buffer(jsString));
+        r_self.roomObjs[infoObj['name']] = room;
+        var infoBlock = {
+          cmdPort: info['cmdPort'],
+          name: info['name'],
+          maxLoad: info['maxLoad'],
+          'private': info['private'],
+          'timestamp': (new Date()).getTime(),
+          currentLoad: 0
+        };
+        r_self.roomInfos[infoObj['name']] = infoBlock;
+        if (cluster.isWorker) {
+          cluster.worker.send({
+            'message': 'newroom',
+            'info': infoBlock
+          });
+        };
+      }).on('close', function() {
+        delete r_self.roomObjs[room.options.name];
+        delete r_self.roomInfos[room.options.name];
+      }).start();
+    });
+    
   },
   self);
 
-  self.pubServer = new socket.SocketServer({
-    autoBroadcast: false,
-    useAlternativeParser: function(cli, data) {
-      var obj = common.stringToJson(data);
-      logger.log(obj);
-      self.router.message(cli, obj);
-    }
+  var d = domain.create();
+  d.on('error', function(er) {
+    console.error('Error in pubServer of RoomManager:', er);
   });
+  d.run(function(){
+    self.pubServer = new socket.SocketServer({
+      autoBroadcast: false,
+      useAlternativeParser: function(cli, data) {
+        var obj = common.stringToJson(data);
+        logger.log(obj);
+        self.router.message(cli, obj);
+      }
+    });
 
-  self.pubServer.on('listening', function() {
-    self._ispubServerConnected = true;
-    self.emit('listening');
+    self.pubServer.on('listening', function() {
+      self._ispubServerConnected = true;
+      self.emit('listening');
+    });
   });
 
   if (cluster.isWorker) {
