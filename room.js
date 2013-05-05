@@ -447,33 +447,28 @@ Room.prototype.ports = function() {
 
 Room.prototype.close = function() {
   var self = this;
-  var d = domain.create();
-  d.on('error', function(er) {
-    logger.error('Error in Room.close()', er);
-  });
-  d.run(function(){
-    logger.log('Room', self.options.name, 'is closed.');
-    clearInterval(self.uploadCurrentInfoTimer);
-    clearTimeout(self.checkoutTimer);
-    this.emit('close');
-    if (cluster.isWorker) {
-      cluster.worker.send({
-        'message': 'roomclose',
-        'info':{
-          'name': self.options.name
-        }
-      })
-    };
-    self.cmdSocket.close();
-    self.dataSocket.close();
-    self.msgSocket.close();
-    if (!self.options.permanent) {
-      fs.unlink(self.dataFile,
-      function() {});
-      fs.unlink(self.msgFile,
-      function() {});
-    }
-  });
+  
+  logger.log('Room', self.options.name, 'is closed.');
+  clearInterval(self.uploadCurrentInfoTimer);
+  clearTimeout(self.checkoutTimer);
+  this.emit('close');
+  if (cluster.isWorker) {
+    cluster.worker.send({
+      'message': 'roomclose',
+      'info':{
+        'name': self.options.name
+      }
+    })
+  };
+  self.cmdSocket.close();
+  self.dataSocket.close();
+  self.msgSocket.close();
+  if (!self.options.permanent) {
+    fs.unlink(self.dataFile,
+    function() {});
+    fs.unlink(self.msgFile,
+    function() {});
+  }
   
   return this;
 };

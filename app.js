@@ -37,14 +37,38 @@ if (cluster.isMaster) {
 
   
 } else {
-  var d = domain.create();
-  d.on('error', function(err) {
-    logger.error('Error in Worker:', err);
+  var d1 = domain.create();
+  d1.on('error', function(er1) {
+    logger.error('Error with RoomManager:', er1);
+    process.exit(1);
   });
-  d.run(function() {
+  d1.run(function() {
     var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
-    roomManager.start();
+    var d = domain.create();
+    d.on('error', function(err) {
+      logger.error('Error in Worker:', err);
+      try {
+        // make sure we close down within 30 seconds
+        var killtimer = setTimeout(function() {
+          process.exit(1);
+        }, 30000);
+        // But don't keep the process open just for that!
+        killtimer.unref();
+
+        var error_notify = '<p style="font-weight:bold;color:red;">完蛋了！！'+
+                  '检测到服务端发生了一些故障，赶快逃离吧！！。</p>\n';
+        roomManager.localcast(error_notify);
+        roomManager.stop();
+      } catch(er) {
+        logger.error('Cannot gently close RoomManager:', err);
+      }
+    });
+    d.run(function() {
+      roomManager.start();
+    });
   });
+  
+  
   
 }
 

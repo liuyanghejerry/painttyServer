@@ -438,4 +438,13 @@ RoomManager.prototype.stop = function() {
   return this;
 };
 
+RoomManager.prototype.localcast = function(msg) {
+  var self = this;
+  _.each(self.roomObjs,
+  function(item) {
+    item.bradcastMessage(msg);
+  });
+  return this;
+};
+
 module.exports = RoomManager;
