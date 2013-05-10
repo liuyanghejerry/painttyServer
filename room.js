@@ -451,7 +451,7 @@ Room.prototype.close = function() {
   logger.log('Room', self.options.name, 'is closed.');
   clearInterval(self.uploadCurrentInfoTimer);
   clearTimeout(self.checkoutTimer);
-  this.emit('close');
+  self.emit('close');
   if (cluster.isWorker) {
     cluster.worker.send({
       'message': 'roomclose',
