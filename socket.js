@@ -51,7 +51,7 @@ function SocketServer(options) {
         }
       }
     }).on('error', function(err) {
-      logger.error('Error with socket:', err);
+      logger.debug('Error with socket:', err);
       cli.isInError = true;
       cli.destroy();
       delete cli['socketBuf'];
