@@ -416,10 +416,13 @@ Notice, notification IS HTML.
 				},
 				name: "Brush"
 			},
+			pressure: 0.74,
 			layer: "layer0",
 			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 		}
 	}
+
+Note, `pressure` as a real number, should always be a double.
 
 #### Draw Line
 	
@@ -443,12 +446,13 @@ Notice, notification IS HTML.
 				},
 				name: "Brush"
 			},
+			pressure: 0.74,
 			layer: "layer1",
 			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 		}
 	}
 	
-<s>Notice, QColor is a temporary way to store color. RGB seems to be the best way to store and transfer, but on client, we still have a HSV model. Thus, this is not the best time to talk about it. </s>
+Note, `pressure` as a real number, should always be a double.
 
 ### Text Message
 
