@@ -39,10 +39,10 @@ function Updater(options) {
   // });
 
 self.currentVersion = {
-  version: '0.3',
+  version: '0.31',
     // TODO: use a text file for changelog
     changelog: '',
-    level: 1,
+    level: 4,
     url: {
       'windows': 'http://mrspaint.oss.aliyuncs.com/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86.zip',
       'mac': 'http://mrspaint.oss.aliyuncs.com/%E8%8C%B6%E7%BB%98%E5%90%9B.app.zip'
