@@ -128,9 +128,17 @@ function Room(options) {
     room.dataFileSize += dbuf.length;
   }).on('connection',
   function(con) {
-    bf.readAll(function(da) {
-      con.write(da);
+    var dataFile_stream = fs.createReadStream(room.dataFile);
+    dataFile_stream.on('readable', function(){
+      var d_buf;
+      while (buf = dataFile_stream.read()) {
+        con.write(d_buf);
+      }
+    }).on('error', function(er){
+      logger.error('Error while streaming', er);
+      con.end();
     });
+
     if (cluster.isWorker) {
       cluster.worker.send({
         'message': 'loadchange',
@@ -180,9 +188,21 @@ function Room(options) {
         content: room.options.welcomemsg + '\n'
       }));
     }
-    tf.readAll(function(da) {
-      con.write(da);
+
+    var msgFile_stream = fs.createReadStream(room.msgFile);
+    msgFile_stream.on('readable', function(){
+      var d_buf;
+      while (buf = msgFile_stream.read()) {
+        con.write(d_buf);
+      }
+    }).on('error', function(er){
+      logger.error('Error while streaming', er);
+      con.end();
     });
+
+    // tf.readAll(function(da) {
+    //   con.write(da);
+    // });
   }).on('datapack',
   function(cli, dbuf) {
     tf.append(dbuf);
