@@ -339,10 +339,11 @@ function RoomManager(options) {
             'info': infoBlock
           });
         };
+        room.start();
       }).on('close', function() {
         delete r_self.roomObjs[room.options.name];
         delete r_self.roomInfos[room.options.name];
-      }).start();
+      });
     });
     
   },
