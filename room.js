@@ -123,10 +123,6 @@ function Room(options) {
     },
     'make_dataStream': ['create_dataFile', function(callback){
       logger.debug('make_dataStream');
-      room.dataFile_readStream = fs.createReadStream(room.dataFile);
-      room.dataFile_readStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      });
       room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
       room.dataFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
@@ -135,10 +131,6 @@ function Room(options) {
     }],
     'make_msgStream': ['create_msgFile', function(callback){
       logger.debug('make_msgStream');
-      room.msgFile_readStream = fs.createReadStream(room.msgFile);
-      room.msgFile_readStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      });
       room.msgFile_writeStream = fs.createWriteStream(room.msgFile);
       room.msgFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
@@ -155,7 +147,16 @@ function Room(options) {
         room.dataFileSize += dbuf.length;
       }).on('connection',
       function(con) {
-        room.dataFile_readStream.pipe(con);
+        var r_stream = fs.createReadStream(room.dataFile);
+        r_stream.on('error', function(er){
+          logger.error('Error while streaming', er);
+        });
+        r_stream.on('readable', function(){
+          var buf;
+          while (buf = r_stream.read()) {
+            con.write(buf);
+          }
+        });
         if (cluster.isWorker) {
           cluster.worker.send({
             'message': 'loadchange',
@@ -208,7 +209,17 @@ function Room(options) {
             content: room.options.welcomemsg + '\n'
           }));
         }
-        room.msgFile_readStream.pipe(con);
+        // room.msgFile_readStream.pipe(con);
+        var r_stream = fs.createReadStream(room.msgFile);
+        r_stream.on('error', function(er){
+          logger.error('Error while streaming', er);
+        });
+        r_stream.on('readable', function(){
+          var buf;
+          while (buf = r_stream.read()) {
+            con.write(buf);
+          }
+        });
       }).on('datapack',
       function(cli, dbuf) {
         room.msgFile_writeStream.write(dbuf);
@@ -315,20 +326,30 @@ function Room(options) {
           var jsString = common.jsonToString(ret);
           r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         } else {
-          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-            var ret = {
-              response: 'clearall',
-              result: true
-            };
-            var jsString = common.jsonToString(ret);
-            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
-            var ret_all = {
-              action: 'clearall',
-            };
-            jsString = common.jsonToString(ret_all);
-            r_room.cmdSocket.broadcastData(new Buffer(jsString));
-            bf.clearAll();
-            r_room.dataFileSize = 0;
+          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {      
+            fs.truncate(r_room.dataFile, 0, function(err){
+              if(err) {
+                  logger.error(err);
+                  return;
+              }
+              r_room.dataFileSize = 0;
+              room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
+              room.dataFile_writeStream.on('error', function(er){
+                logger.error('Error while streaming', er);
+              });
+
+              var ret = {
+                response: 'clearall',
+                result: true
+              };
+              var jsString = common.jsonToString(ret);
+              r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+              var ret_all = {
+                action: 'clearall',
+              };
+              jsString = common.jsonToString(ret_all);
+              r_room.cmdSocket.broadcastData(new Buffer(jsString));
+            });
           } else {
             var ret = {
               response: 'clearall',
@@ -464,7 +485,9 @@ function Room(options) {
       callback();
     }]
   }, function(er, re){
-    logger.error('Error while creating Room: ',er);
+    if (er) {
+      logger.error('Error while creating Room: ', er);
+    };
   });  
 }
 
