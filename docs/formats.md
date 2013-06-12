@@ -418,7 +418,8 @@ Notice, notification IS HTML.
 			},
 			pressure: 0.74,
 			layer: "layer0",
-			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
+			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+			name: "someone"
 		}
 	}
 
@@ -448,11 +449,102 @@ Note, `pressure` as a real number, should always be a double.
 			},
 			pressure: 0.74,
 			layer: "layer1",
-			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
+			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+			name: "someone"
 		}
 	}
 	
 Note, `pressure` as a real number, should always be a double.
+
+#### Block
+
+As of Mr.Paint 0.4, client may choose to use `block` to send bunch of paint actions. This may save bandwidth.
+
+Single block may contains 2 to 10 paint actions, each of them is either `drawline` or `drawpoint`.
+
+Example:
+
+	{
+		action: "block",
+		block: [
+			{
+				action: "drawpoint",
+				info: {
+					point: {
+						x: 10,
+						y: 98,
+					},
+					brush: {
+						width: 10,
+						color: {
+							red: 0,
+							green: 0,
+							blue: 0
+						},
+						name: "Brush"
+					},
+					pressure: 0.74,
+					layer: "layer0",
+					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+					name: "someone"
+				}
+			},
+			{
+				action: "drawline",
+				info: {
+					start: {
+						x: 100,
+						y: 32
+					},
+					end: {
+						x: 107,
+						y: 35
+					},
+					brush: {
+						width: 10,
+						color: {
+							red: 255,
+							green: 255,
+							blue: 255
+						},
+						name: "Brush"
+					},
+					pressure: 0.74,
+					layer: "layer1",
+					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+					name: "someone"
+				}
+			},
+			{
+				action: "drawline",
+				info: {
+					start: {
+						x: 107,
+						y: 35
+					},
+					end: {
+						x: 120,
+						y: 37
+					},
+					brush: {
+						width: 10,
+						color: {
+							red: 255,
+							green: 255,
+							blue: 255
+						},
+						name: "Brush"
+					},
+					pressure: 0.52,
+					layer: "layer1",
+					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+					name: "someone"
+				}
+			}
+		]
+	}
+
+Note, blocks should never contains blocks.
 
 ### Text Message
 

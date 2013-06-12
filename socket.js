@@ -36,27 +36,31 @@ function SocketServer(options) {
     cli.on('close', function() {
       var index = server.clients.indexOf(cli);
       server.clients.splice(index, 1);
-    }).on('data', function (buf) {
-      server.emit('data', cli, buf);
-      if(op.waitComplete) {
-        server.onData(cli, buf);
-      }else{
-        if(op.autoBroadcast) {
-          _.each(server.clients, function(c) {
-            if(c != cli) c.write(buf);
-          });
-        }
-        if(_.isFunction(op.useAlternativeParser)) {
-          server.onData(cli, buf);
-        }
-      }
     }).on('error', function(err) {
       logger.debug('Error with socket:', err);
       cli.isInError = true;
       cli.destroy();
       delete cli['socketBuf'];
       delete cli['dataSize'];
+      var index = server.clients.indexOf(cli);
+      server.clients.splice(index, 1);
     });
+    if(op.waitComplete){
+      cli.on('data', function (buf) {
+        server.emit('data', cli, buf);
+        server.onData(cli, buf);
+      });
+    }else{
+      if (op.autoBroadcast) {
+        _.each(server.clients, function(c) {
+          if(c != cli) cli.pipe(c);
+        });
+      };
+      if(_.isFunction(op.useAlternativeParser)) {
+        server.onData(cli, buf);
+      }
+    }
+    
   }).on('error', function(err) {
     logger.error('Error with socket:', err);
   });

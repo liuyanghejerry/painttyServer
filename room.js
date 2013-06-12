@@ -185,7 +185,8 @@ function Room(options) {
             });
           };
           if (room.options.emptyclose) {
-            if (room.currentLoad() <= 1) {
+            logger.debug('On socket exits, currentLoad:', room.currentLoad());
+            if (room.currentLoad() <= 1) { // when exit, still connected on.
               room.close();
             }
           }
