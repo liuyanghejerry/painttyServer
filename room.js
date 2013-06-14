@@ -207,7 +207,6 @@ function Room(options) {
             content: room.options.welcomemsg + '\n'
           }));
         }
-        // room.msgFile_readStream.pipe(con);
         var r_stream = fs.createReadStream(room.msgFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
