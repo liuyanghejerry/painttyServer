@@ -150,13 +150,10 @@ function Room(options) {
         var r_stream = fs.createReadStream(room.dataFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
+        }).on('end', function(){
+          r_stream.unpipe();
         });
-        r_stream.on('readable', function(){
-          var buf;
-          while (buf = r_stream.read()) {
-            con.write(buf);
-          }
-        });
+        r_stream.pipe(con, { end: false });
         if (cluster.isWorker) {
           cluster.worker.send({
             'message': 'loadchange',
@@ -214,13 +211,10 @@ function Room(options) {
         var r_stream = fs.createReadStream(room.msgFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
+        }).on('end', function(){
+          r_stream.unpipe();
         });
-        r_stream.on('readable', function(){
-          var buf;
-          while (buf = r_stream.read()) {
-            con.write(buf);
-          }
-        });
+        r_stream.pipe(con, { end: false });
       }).on('datapack',
       function(cli, dbuf) {
         room.msgFile_writeStream.write(dbuf);
