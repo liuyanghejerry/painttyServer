@@ -3,11 +3,12 @@ var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 var util = require("util");
 var fs = require('fs');
+var domain = require('domain');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs/updater'});
 var common = require('./common.js');
 var Router = require("./router.js");
-var socket = require('./socket.js');
+var socket = require('./streamedsocket.js');
 
 function Updater(options) {
   events.EventEmitter.call(this);
@@ -93,16 +94,23 @@ self.currentVersion = {
       });
   });
 
-self.pubServer = new socket.SocketServer({
-  autoBroadcast: false,
-  keepAlive: false,
-  useAlternativeParser: function(cli, data) {
-    var obj = JSON.parse(data);
-    logger.log(obj);
-    self.router.message(cli, obj);
-  }
-});
+  var d = domain.create();
+  d.on('error', function(er) {
+    console.error('Error in pubServer of Updater:', er);
+  });
 
+  d.run(function() {
+    self.pubServer = new socket.SocketServer({
+      autoBroadcast: false,
+      keepAlive: false
+    });
+
+    self.pubServer.on('message', function(client, data) {
+      var obj = JSON.parse(data);
+      logger.log(obj);
+      self.router.message(client, obj);
+    });
+  });
 }
 
 util.inherits(Updater, events.EventEmitter);

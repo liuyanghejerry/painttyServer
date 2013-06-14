@@ -10,7 +10,7 @@ var async = require('async');
 var logger = require('tracer').dailyfile({root:'./logs'});
 var bw = require("buffered-writer");
 var common = require('./common.js');
-var socket = require('./socket.js');
+var socket = require('./streamedsocket.js');
 var BufferedFile = require("./bufferedfile.js");
 var Router = require("./router.js");
 
@@ -424,13 +424,13 @@ function Room(options) {
     'init_cmdSocket': ['install_router', function(callback){
           logger.debug('init_cmdSocket');
           room.cmdSocket = new socket.SocketServer({
-            autoBroadcast: false,
-            useAlternativeParser: function(cli, buf) {
-              var obj = common.stringToJson(buf);
-              room.router.message(cli, obj);
-            }
+            autoBroadcast: false
           });
           room.cmdSocket.maxConnections = room.options.maxLoad;
+          room.cmdSocket.on('message', function(client, data) {
+            var obj = common.stringToJson(data);
+            room.router.message(client, obj);
+          });
           callback();
     }],
     'start_socketListener': ['init_cmdSocket', function(callback){
