@@ -9,7 +9,7 @@ var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs'});
 var common = require('./common.js');
 var Router = require("./router.js");
-var socket = require('./socket.js');
+var socket = require('./streamedsocket.js');
 var Room = require('./room.js');
 
 function RoomManager(options) {
@@ -355,17 +355,16 @@ function RoomManager(options) {
   });
   d.run(function(){
     self.pubServer = new socket.SocketServer({
-      autoBroadcast: false,
-      useAlternativeParser: function(cli, data) {
-        var obj = common.stringToJson(data);
-        logger.log(obj);
-        self.router.message(cli, obj);
-      }
+      autoBroadcast: false
     });
 
     self.pubServer.on('listening', function() {
       self._ispubServerConnected = true;
       self.emit('listening');
+    }).on('message', function(client, data) {
+      var obj = common.stringToJson(data);
+      logger.log(obj);
+      self.router.message(client, obj);
     });
   });
 

@@ -8,6 +8,9 @@ var Transform = require('stream').Transform;
 var PassThrough = require('stream').PassThrough;
 
 function StreamedSocketProtocol(options) {
+  if (!(this instanceof StreamedSocketProtocol))
+    return new StreamedSocketProtocol(options);
+
   Transform.call(this, options);
 
   var defaultOptions = {
@@ -24,6 +27,8 @@ function StreamedSocketProtocol(options) {
   this._buf = new Buffers();
   this._dataSize = null;
 }
+
+util.inherits(StreamedSocketProtocol, Transform);
 
 function protocolPack(data) {
   var len = data.length;
@@ -50,7 +55,10 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
   function GETPACKAGESIZEFROMDATA() {
     var pg_size_array = stream_protocol._buf.splice(0, 4);
     pg_size_array = pg_size_array.toBuffer();
-    var pg_size = (pg_size_array[0] << 24) + (pg_size_array[1] << 16) + (pg_size_array[2] << 8) + pg_size_array[3];
+    var pg_size = (pg_size_array[0] << 24) 
+                + (pg_size_array[1] << 16) 
+                + (pg_size_array[2] << 8) 
+                + pg_size_array[3];
     return pg_size;
   }
   
@@ -86,6 +94,17 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
     
     var repacked = REBUILD(packageData);
     stream_protocol.emit('datapack', stream_protocol._client, repacked);
+    if(isCompressed) {
+      common.qUncompress(dataBlock, function(d, err) {
+        if(err){
+          logger.error('Uncompress error:', err);
+          return;
+        }
+        stream_protocol.emit('message', stream_protocol._client, d);
+      });
+    }else{
+      stream_protocol.emit('message', stream_protocol._client, dataBlock);
+    }
     
     stream_protocol.push(repacked);
     stream_protocol._dataSize = 0;
@@ -127,9 +146,16 @@ function SocketServer(options) {
     });
 
     var stream_parser = new StreamedSocketProtocol({'client': cli});
+    stream_parser.on('datapack', function(c, d) {
+      server.emit('datapack', c, d);
+    });
+
+    stream_parser.on('message', function(c, d) {
+      server.emit('message', c, d);
+    });
 
     if (op.autoBroadcast) {
-      var server.passthrogh = new PassThrough();
+      var passthrogh = new PassThrough();
       cli.pipe(stream_parser, { end: false }).pipe(passthrogh);
       _.each(server.clients, function(c) {
         if(c != cli) passthrogh.pipe(c);
