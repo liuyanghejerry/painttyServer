@@ -126,16 +126,18 @@ function Room(options) {
       room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
       room.dataFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
+      }).on('open', function() {
+        callback();
       });
-      callback();
     }],
     'make_msgStream': ['create_msgFile', function(callback){
       logger.debug('make_msgStream');
       room.msgFile_writeStream = fs.createWriteStream(room.msgFile);
       room.msgFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
+      }).on('open', function() {
+        callback();
       });
-      callback();
     }],
     'init_dataSocket': ['make_dataStream', function(callback){
       logger.debug('init_dataSocket');
@@ -147,6 +149,7 @@ function Room(options) {
         room.dataFileSize += dbuf.length;
       }).on('connection',
       function(con) {
+        room.dataFile_writeStream.flush();
         var r_stream = fs.createReadStream(room.dataFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);

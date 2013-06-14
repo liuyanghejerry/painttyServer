@@ -134,6 +134,7 @@ function SocketServer(options) {
   server.clients = [];
   server.on('connection', function(cli) {
     cli.setKeepAlive(server.options.keepAlive);
+    cli.setNoDelay(true);
     server.clients.push(cli);
     cli.on('close', function() {
       delete cli['passthrogh'];
@@ -159,11 +160,23 @@ function SocketServer(options) {
     if (op.autoBroadcast) {
       cli.passthrogh = new PassThrough();
       cli.pipe(cli.stream_parser, { end: false }).pipe(cli.passthrogh, { end: false });
+      cli.on('end', function() {
+        cli.unpipe(cli.stream_parser);
+      });
+      cli.stream_parser.on('end', function() {
+        cli.stream_parser.unpipe(cli.passthrogh);
+      });
       _.each(server.clients, function(c) {
         if(c != cli){
           cli.passthrogh.pipe(c, { end: false });
+          cli.passthrogh.on('end', function() {
+            cli.passthrogh.unpipe(c);
+          });
           if(c.passthrogh){
             c.passthrogh.pipe(cli, { end: false });
+            c.passthrogh.on('end', function() {
+              cli.passthrogh.unpipe(cli);
+            });
           }else{
             logger.error('Cannot find passthrogh of client', c);
           }
@@ -171,6 +184,9 @@ function SocketServer(options) {
       });
     }else{
       cli.pipe(cli.stream_parser, { end: false });
+      cli.on('end', function(){
+        cli.unpipe(cli.stream_parser);
+      });
     };
   }).on('error', function(err) {
     logger.error('Error with socket:', err);

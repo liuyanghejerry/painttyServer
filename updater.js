@@ -106,7 +106,7 @@ self.currentVersion = {
     });
 
     self.pubServer.on('message', function(client, data) {
-      var obj = JSON.parse(data);
+      var obj = common.stringToJson(data);
       logger.log(obj);
       self.router.message(client, obj);
     });

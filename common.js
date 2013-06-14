@@ -3,6 +3,8 @@ var zlib = require('zlib');
 var fs = require('fs');
 var util = require("util");
 var Buffers = require('buffers');
+var StringDecoder = require('string_decoder').StringDecoder;
+var decoder = new StringDecoder('utf8');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs'});
 
@@ -43,7 +45,7 @@ exports.jsonToString = function (j) {
     return str;
   } 
   catch(e) {
-    logger.error('Error in JSON', e);
+    logger.error('Error in JSON', e, j);
     return '{}';
   }
 };
@@ -54,7 +56,7 @@ exports.stringToJson = function (s) {
     return json;
   } 
   catch(e) {
-    logger.error('Error in JSON', e);
+    logger.error('Error in JSON', e, decoder.write(s));
     return {};
   }
 };
