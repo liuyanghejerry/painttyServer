@@ -144,16 +144,12 @@ function SocketServer(options) {
 
     // also remove it from other clients' pipe list
     _.forEach(server.clients, function(elm) {
-      if(elm['passthrogh']){
-        elm.passthrogh.unpipe(cli);
+      if(elm['stream_parser']){
+        elm.stream_parser.unpipe(cli);
       }
     });
 
     // time to destroy all associated streams
-    if (cli['passthrogh']) {
-      cli.passthrogh.unpipe();
-      delete cli['passthrogh'];
-    };
     if (cli['stream_parser']) {
       cli.stream_parser.unpipe();
       delete cli['stream_parser'];
@@ -182,37 +178,22 @@ function SocketServer(options) {
     });
 
     if (op.autoBroadcast) {
-      cli.passthrogh = new PassThrough();
-      // cli.on('readable', function(){
-      //   var buf;
-      //   while (buf = cli.read()) {
-      //     cli.stream_parser.write(buf);
-      //   }
-      // });
       cli.pipe(cli.stream_parser, {end: false});
-      
-      cli.stream_parser.pipe(cli.passthrogh, { end: false });
 
       _.each(server.clients, function(c) {
         if(c != cli){
-          cli.passthrogh.pipe(c, { end: false });
-          if(c.passthrogh){
+          cli.stream_parser.pipe(c, { end: false });
+          if(c.stream_parser){
             // only if history all sent
             cli.once('historydone', function() {
-              c.passthrogh.pipe(cli, { end: false });
+              c.stream_parser.pipe(cli, { end: false });
             });
           }else{
-            logger.error('Cannot find passthrogh of client', c);
+            logger.error('Cannot find stream_parser of client', c);
           }
         } 
       });
     }else{
-      // cli.on('readable', function() {
-      //   var buf;
-      //   while(buf = cli.read()){
-      //     cli.stream_parser.write(buf);
-      //   }
-      // });
       cli.pipe(cli.stream_parser, { end: false });
     };
   }).on('error', function(err) {

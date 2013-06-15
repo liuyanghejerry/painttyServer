@@ -16,6 +16,8 @@ var Router = require("./router.js");
 
 function Room(options) {
   events.EventEmitter.call(this);
+  var room = this;
+  room.workingSockets = 0;
 
   var defaultOptions = new
   function() {
@@ -39,33 +41,14 @@ function Room(options) {
     var options = {};
   }
   var op = _.defaults(options, defaultOptions);
+  room.options = op;
   if (!_.isString(op.name) || op.name.length < 1) {
     common.log('valid name');
     // TODO: throw exception
     return;
   }
-  op.logLocation = function() {
-    var hash = crypto.createHash('sha1');
-    hash.update(op.name, 'utf8');
-    hash = hash.digest('hex');
-    return './logs/rooms/' + hash + '.log';
-  } ();
 
-  var room = this;
-  room.workingSockets = 0;
-  room.options = op;
   room.router = new Router();
-
-  // NOTE: here we use sync read function 
-  // to ensure we have that key when running.
-  if (room.options.salt.length < 1) {
-    room.options.salt = fs.readFileSync('./config/salt.key');
-  }
-
-  var hash_source = room.options.name + room.options.salt;
-  var hashed = crypto.createHash('sha1');
-  hashed.update(hash_source, 'utf8');
-  room.signed_key = hashed.digest('hex');
 
   function prepareCheckoutTimer(r_room) {
     if (r_room.options.expiration) {
@@ -78,51 +61,72 @@ function Room(options) {
       },
       r_room.options.expiration * 3600 * 1000);
     }
-  };
-  prepareCheckoutTimer(room);
-
-  room.dataFile = function() {
-    fs.exists('./data/room/',
-    function(exists) {
-      if (!exists) {
-        fs.mkdirSync('./data/room/');
-      }
-    });
-
-    var hash = crypto.createHash('sha1');
-    hash.update(room.options.name, 'utf8');
-    hash = hash.digest('hex');
-    return './data/room/' + hash + '.data';
-  } ();
-  
-
-  room.msgFile = function() {
-    fs.exists('./data/room/',
-    function(exists) {
-      if (!exists) {
-        fs.mkdirSync('./data/room/');
-      }
-    });
-
-    var hash = crypto.createHash('sha1');
-    hash.update(op.name, 'utf8');
-    hash = hash.digest('hex');
-    return './data/room/' + hash + '.msg';
-  } ();
-  room.dataFileSize = 0;
-  room.msgFileSize = 0; // not really used, currently
+  }
 
   async.auto({
-    'create_dataFile': function(callback){
-      logger.debug('create_dataFile');
+    'load_salt': function(callback) {
+      if (room.options.salt.length < 1) {
+        fs.readFile('./config/salt.key', function(err, data) {
+          if(err) {
+            logger.error('Cannot load salt file:', err);
+            callback(err);
+          }
+          room.options.salt = data;
+          callback();
+        });
+      }
+    },
+    'gen_signedkey': ['load_salt', function(callback) {
+      var hash_source = room.options.name + room.options.salt;
+      var hashed = crypto.createHash('sha1');
+      hashed.update(hash_source, 'utf8');
+      room.signed_key = hashed.digest('hex');
+      callback();
+    }],
+    'start_checkTimer': function(callback){
+      prepareCheckoutTimer(room);
+      callback();
+    },
+    'ensure_dir': function(callback){
+      fs.exists('./data/room/',
+      function(exists) {
+        if (!exists) {
+          fs.mkdir('./data/room/', function(err){
+            if (err) {
+              logger.error('Error while creating dir for room: ', err);
+              callback(err);
+            };
+            callback();
+          });
+        }
+        callback();
+      });
+    },
+    'gen_fileNames': ['ensure_dir', function(callback){
+      room.dataFile = function() {
+        var hash = crypto.createHash('sha1');
+        hash.update(room.options.name, 'utf8');
+        hash = hash.digest('hex');
+        return './data/room/' + hash + '.data';
+      } ();
+
+      room.msgFile = function() {
+        var hash = crypto.createHash('sha1');
+        hash.update(op.name, 'utf8');
+        hash = hash.digest('hex');
+        return './data/room/' + hash + '.msg';
+      } ();
+      room.dataFileSize = 0;
+      room.msgFileSize = 0; // not really used, currently
+      callback();
+    }],
+    'create_dataFile': ['gen_fileNames', function(callback){
       fs.truncate(room.dataFile, 0, callback);
-    },
-    'create_msgFile': function(callback){
-      logger.debug('create_msgFile');
-      fs.open(room.msgFile, 'w', callback);
-    },
+    }],
+    'create_msgFile': ['gen_fileNames', function(callback){
+      fs.truncate(room.msgFile, 0, callback);
+    }],
     'make_dataStream': ['create_dataFile', function(callback){
-      logger.debug('make_dataStream');
       room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
       room.dataFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
@@ -131,7 +135,6 @@ function Room(options) {
       });
     }],
     'make_msgStream': ['create_msgFile', function(callback){
-      logger.debug('make_msgStream');
       room.msgFile_writeStream = fs.createWriteStream(room.msgFile);
       room.msgFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
@@ -140,7 +143,6 @@ function Room(options) {
       });
     }],
     'init_dataSocket': ['make_dataStream', function(callback){
-      logger.debug('init_dataSocket');
       room.dataSocket = new socket.SocketServer();
       room.dataSocket.maxConnections = room.options.maxLoad;
       room.dataSocket.on('datapack',
@@ -204,7 +206,6 @@ function Room(options) {
       callback();
     }],
     'init_msgSocket': ['make_msgStream', function(callback){
-      logger.debug('init_msgSocket');
       room.msgSocket = new socket.SocketServer();
       room.msgSocket.maxConnections = room.options.maxLoad;
       room.msgSocket.on('connection', function(con) {
@@ -268,7 +269,6 @@ function Room(options) {
       callback();
     }],
     'install_router': ['init_msgSocket', 'init_dataSocket', function(callback){
-      logger.debug('install_router');
       room.router.reg('request', 'login',
       function(cli, obj) {
         var r_room = room;
@@ -469,21 +469,17 @@ function Room(options) {
       callback();
     }],
     'init_cmdSocket': ['install_router', function(callback){
-          logger.debug('init_cmdSocket');
-          room.cmdSocket = new socket.SocketServer({
-            autoBroadcast: false
-          });
-          // room.cmdSocket.maxConnections = room.options.maxLoad;
-          room.cmdSocket.on('message', function(client, data) {
-            var obj = common.stringToJson(data);
-            room.router.message(client, obj);
-          });
-          callback();
+      room.cmdSocket = new socket.SocketServer({
+        autoBroadcast: false
+      });
+      // room.cmdSocket.maxConnections = room.options.maxLoad;
+      room.cmdSocket.on('message', function(client, data) {
+        var obj = common.stringToJson(data);
+        room.router.message(client, obj);
+      });
+      callback();
     }],
     'start_socketListener': ['init_cmdSocket', function(callback){
-      logger.debug('start_socketListener');
-      logger.debug(room.cmdSocket);
-
       var tmpF = function() {
         room.workingSockets += 1;
         if (room.workingSockets >= 3) {
@@ -529,7 +525,8 @@ function Room(options) {
     if (er) {
       logger.error('Error while creating Room: ', er);
     };
-  });  
+  });
+
 }
 
 util.inherits(Room, events.EventEmitter);
