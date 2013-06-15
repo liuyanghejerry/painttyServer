@@ -149,31 +149,57 @@ function Room(options) {
         room.dataFileSize += dbuf.length;
       }).on('connection',
       function(con) {
-        var r_stream = fs.createReadStream(room.dataFile);
-        r_stream.on('error', function(er){
-          logger.error('Error while streaming', er);
-        }).on('end', function(){
-          con.inHistory = false;
-          r_stream.unpipe();
-          con.emit('historydone');
-        });
-        con.inHistory = true;
-        r_stream.pipe(con, { end: false });
-        // r_stream.on('readable', function() {
-        //   var buf;
-        //   while(buf = r_stream.read()) {
-        //     con.write(buf);
-        //   }
-        // });
-        if (cluster.isWorker) {
-          cluster.worker.send({
-            'message': 'loadchange',
-            'info': {
-              'name': room.options.name,
-              'currentLoad': room.currentLoad()
+        var r_stream;
+        async.auto({
+          'create_stream': function(callback){
+            r_stream = fs.createReadStream(room.dataFile);
+            r_stream.on('error', function(er){
+              logger.error('Error while streaming', er);
+            }).on('end', function(){
+              con.inHistory = false;
+              r_stream.unpipe();
+              con.emit('historydone');
+            });
+            callback();
+          },
+          'wait_flush': ['create_stream', function(callback) {
+            var tmp_size = room.dataFileSize; // record so that it won't keep growing
+            // logger.trace('starting wait flush');
+            function doWait() {
+              fs.stat(room.dataFile, function(err, stat) {
+                if (err) {
+                  logger.error('Error while getting stat of dataFile', err);
+                  callback(err);
+                };
+                // logger.trace('Promised size: ', tmp_size, ', in file size:', stat.size);
+                if (stat.size >= tmp_size) { // don't need flush
+                  // logger.trace('Pass!');
+                  callback();
+                }else{ //still need to wait
+                  // logger.trace('Wait again.');
+                  setTimeout(doWait, 100);
+                }
+              });
             }
-          });
-        };
+            doWait();
+          }],
+          'start_pipe': ['wait_flush', function(callback){
+            con.inHistory = true;
+            r_stream.pipe(con, { end: false });
+          }],
+          'send_to_clusters': function(callback){
+            if (cluster.isWorker) {
+              cluster.worker.send({
+                'message': 'loadchange',
+                'info': {
+                  'name': room.options.name,
+                  'currentLoad': room.currentLoad()
+                }
+              });
+            };
+            callback();
+          }
+        });
       });
       callback();
     }],
