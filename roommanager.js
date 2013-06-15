@@ -370,7 +370,7 @@ function RoomManager(options) {
 
   if (cluster.isWorker) {
     cluster.worker.on('message', function(msg) {
-      logger.log('cluster msg: ', msg);
+      // logger.log('cluster msg: ', msg);
       if (msg['message'] == 'newroom') {
         self.roomInfos[msg['info']['name']] = msg['info'];
       }else if (msg['message'] == 'roominfo') {
@@ -384,12 +384,12 @@ function RoomManager(options) {
 
     function roomInfoRefresh() {
       var now = (new Date()).getTime();
-      logger.debug('roomInfo refreshed');
+      // logger.debug('roomInfo refreshed');
       _.each(self.roomInfos, function(ele, ind, list) {
-        logger.debug(ele['name'], ':', ele['timestamp']);
+        // logger.debug(ele['name'], ':', ele['timestamp']);
         if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
           if(list[ele['name']]){
-            logger.log(ele['name'], 'is timeout and deleted.');
+            logger.warn(ele['name'], 'is timeout and deleted.');
             delete list[ele['name']];
           } 
         }

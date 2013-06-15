@@ -149,14 +149,22 @@ function Room(options) {
         room.dataFileSize += dbuf.length;
       }).on('connection',
       function(con) {
-        room.dataFile_writeStream.flush();
         var r_stream = fs.createReadStream(room.dataFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
         }).on('end', function(){
+          con.inHistory = false;
           r_stream.unpipe();
+          con.emit('historydone');
         });
+        con.inHistory = true;
         r_stream.pipe(con, { end: false });
+        // r_stream.on('readable', function() {
+        //   var buf;
+        //   while(buf = r_stream.read()) {
+        //     con.write(buf);
+        //   }
+        // });
         if (cluster.isWorker) {
           cluster.worker.send({
             'message': 'loadchange',
@@ -213,10 +221,20 @@ function Room(options) {
         var r_stream = fs.createReadStream(room.msgFile);
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
-        }).on('end', function(){
+        }).on('end', function() {
+          con.inHistory = false;
           r_stream.unpipe();
+          con.emit('historydone');
         });
+        // r_stream.on('readable', function() {
+        //   var buf;
+        //   while (buf = r_stream.read()) {
+        //     con.write(buf);
+        //   }
+        // });
         r_stream.pipe(con, { end: false });
+        con.inHistory = true;
+        
       }).on('datapack',
       function(cli, dbuf) {
         room.msgFile_writeStream.write(dbuf);
@@ -429,7 +447,7 @@ function Room(options) {
           room.cmdSocket = new socket.SocketServer({
             autoBroadcast: false
           });
-          room.cmdSocket.maxConnections = room.options.maxLoad;
+          // room.cmdSocket.maxConnections = room.options.maxLoad;
           room.cmdSocket.on('message', function(client, data) {
             var obj = common.stringToJson(data);
             room.router.message(client, obj);

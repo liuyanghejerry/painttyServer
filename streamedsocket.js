@@ -25,7 +25,7 @@ function StreamedSocketProtocol(options) {
   this._options = op;
   this._client = op.client;
   this._buf = new Buffers();
-  this._dataSize = null;
+  this._dataSize = 0;
 }
 
 util.inherits(StreamedSocketProtocol, Transform);
@@ -88,6 +88,8 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
       done();
       return;
     }
+
+
     var packageData = READRAWBYTES(stream_protocol._dataSize);
     var isCompressed = GETFLAG(packageData);
     var dataBlock = packageData.slice(1);
@@ -132,20 +134,42 @@ function SocketServer(options) {
   var server = this;
   server.options = op;
   server.clients = [];
+  function onClientExit(cli) {
+    // no more output
+    cli.unpipe();
+    
+    // erase from client list
+    var index = server.clients.indexOf(cli);
+    server.clients.splice(index, 1);
+
+    // also remove it from other clients' pipe list
+    _.forEach(server.clients, function(elm) {
+      if(elm['passthrogh']){
+        elm.passthrogh.unpipe(cli);
+      }
+    });
+
+    // time to destroy all associated streams
+    if (cli['passthrogh']) {
+      cli.passthrogh.unpipe();
+      delete cli['passthrogh'];
+    };
+    if (cli['stream_parser']) {
+      cli.stream_parser.unpipe();
+      delete cli['stream_parser'];
+    };
+  };
+
   server.on('connection', function(cli) {
     cli.setKeepAlive(server.options.keepAlive);
     cli.setNoDelay(true);
     server.clients.push(cli);
     cli.on('close', function() {
-      delete cli['passthrogh'];
-      delete cli['stream_parser'];
-      var index = server.clients.indexOf(cli);
-      server.clients.splice(index, 1);
+      onClientExit(cli);
     }).on('error', function(err) {
       logger.error('Error with socket:', err);
       cli.destroy();
-      var index = server.clients.indexOf(cli);
-      server.clients.splice(index, 1);
+      onClientExit(cli);
     });
 
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
@@ -159,23 +183,23 @@ function SocketServer(options) {
 
     if (op.autoBroadcast) {
       cli.passthrogh = new PassThrough();
-      cli.pipe(cli.stream_parser, { end: false }).pipe(cli.passthrogh, { end: false });
-      cli.on('end', function() {
-        cli.unpipe(cli.stream_parser);
-      });
-      cli.stream_parser.on('end', function() {
-        cli.stream_parser.unpipe(cli.passthrogh);
-      });
+      // cli.on('readable', function(){
+      //   var buf;
+      //   while (buf = cli.read()) {
+      //     cli.stream_parser.write(buf);
+      //   }
+      // });
+      cli.pipe(cli.stream_parser, {end: false});
+      
+      cli.stream_parser.pipe(cli.passthrogh, { end: false });
+
       _.each(server.clients, function(c) {
         if(c != cli){
           cli.passthrogh.pipe(c, { end: false });
-          cli.passthrogh.on('end', function() {
-            cli.passthrogh.unpipe(c);
-          });
           if(c.passthrogh){
-            c.passthrogh.pipe(cli, { end: false });
-            c.passthrogh.on('end', function() {
-              cli.passthrogh.unpipe(cli);
+            // only if history all sent
+            cli.once('historydone', function() {
+              c.passthrogh.pipe(cli, { end: false });
             });
           }else{
             logger.error('Cannot find passthrogh of client', c);
@@ -183,10 +207,13 @@ function SocketServer(options) {
         } 
       });
     }else{
+      // cli.on('readable', function() {
+      //   var buf;
+      //   while(buf = cli.read()){
+      //     cli.stream_parser.write(buf);
+      //   }
+      // });
       cli.pipe(cli.stream_parser, { end: false });
-      cli.on('end', function(){
-        cli.unpipe(cli.stream_parser);
-      });
     };
   }).on('error', function(err) {
     logger.error('Error with socket:', err);
