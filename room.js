@@ -158,7 +158,7 @@ function Room(options) {
             r_stream.on('error', function(er){
               logger.error('Error while streaming', er);
             }).on('end', function(){
-              con.inHistory = false;
+              con.inDataHistory = false;
               r_stream.unpipe();
               con.emit('historydone');
             });
@@ -186,7 +186,7 @@ function Room(options) {
             doWait();
           }],
           'start_pipe': ['wait_flush', function(callback){
-            con.inHistory = true;
+            con.inDataHistory = true;
             r_stream.pipe(con, { end: false });
           }],
           'send_to_clusters': function(callback){
@@ -249,18 +249,12 @@ function Room(options) {
         r_stream.on('error', function(er){
           logger.error('Error while streaming', er);
         }).on('end', function() {
-          con.inHistory = false;
+          con.inMsgHistory = false;
           r_stream.unpipe();
           con.emit('historydone');
         });
-        // r_stream.on('readable', function() {
-        //   var buf;
-        //   while (buf = r_stream.read()) {
-        //     con.write(buf);
-        //   }
-        // });
         r_stream.pipe(con, { end: false });
-        con.inHistory = true;
+        con.inMsgHistory = true;
         
       }).on('datapack',
       function(cli, dbuf) {

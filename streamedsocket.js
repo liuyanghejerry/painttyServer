@@ -134,6 +134,8 @@ function SocketServer(options) {
   var server = this;
   server.options = op;
   server.clients = [];
+  server.nullDevice = common.createNullDevice();
+
   function onClientExit(cli) {
     // no more output
     cli.unpipe();
@@ -178,6 +180,10 @@ function SocketServer(options) {
 
     if (op.autoBroadcast) {
       cli.pipe(cli.stream_parser, {end: false});
+
+      if (server.nullDevice) {
+        cli.stream_parser.pipe(server.nullDevice, {end: false});
+      };
 
       _.each(server.clients, function(c) {
         if(c != cli){

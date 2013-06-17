@@ -60,3 +60,11 @@ exports.stringToJson = function (s) {
     return {};
   }
 };
+
+exports.createNullDevice = function () {
+  if (os.type().match(/(windows)/i)) {
+    return fs.createWriteStream('nul');
+  }else{
+    return fs.createWriteStream('/dev/null');
+  }
+};
