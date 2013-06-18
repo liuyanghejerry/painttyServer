@@ -7,6 +7,7 @@ var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs'});
+var toobusy = require('toobusy');
 var common = require('./common.js');
 var Router = require("./router.js");
 var socket = require('./streamedsocket.js');
@@ -295,6 +296,20 @@ function RoomManager(options) {
       return;
     }
     // canvasSize check end
+
+    // if server is too busy
+    if(toobusy()) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 201
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      r_self.pubServer.sendData(cli, new Buffer(jsString));
+      return;
+    }
+    // end of busy check
 
     var d = domain.create();
     d.on('error', function(er) {

@@ -4,6 +4,7 @@ var numCPUs = require('os').cpus().length;
 var _ = require('underscore');
 var domain = require('domain');
 var logger = require('tracer').dailyfile({root:'./logs'});
+var toobusy = require('toobusy');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
 // var express = require('express');
@@ -34,7 +35,6 @@ if (cluster.isMaster) {
     logger.error('worker ', worker.process.pid, ' died');
     forkWorker();
   });
-
   
 } else {
   var d1 = domain.create();
@@ -62,6 +62,14 @@ if (cluster.isMaster) {
       } catch(er) {
         logger.error('Cannot gently close RoomManager:', err);
       }
+
+      process.on('SIGINT', function() {
+        if (roomManager) {
+          roomManager.stop();
+        };
+        toobusy.shutdown();
+        process.exit();
+      });
     });
     d.run(function() {
       roomManager.start();
