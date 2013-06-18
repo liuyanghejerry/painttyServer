@@ -1,0 +1,46 @@
+{
+  "name": "painttyServer",
+  "version": "0.4.0",
+  "description": "Server side for project paintty",
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/liuyanghejerry/painttyServer"
+  },
+  "keywords": [
+    "paintty",
+    "painttyServer",
+    "painting",
+    "drawing"
+  ],
+  "author": "liuyanghejerry",
+  "license": "LGPL",
+  "readmeFilename": "README.md",
+  "gitHead": "edab465c4758f03191ba4b5782bdbd935d779bcb",
+  "bugs": {
+    "url": "https://github.com/liuyanghejerry/painttyServer/issues"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "dependencies": {
+    "async": "~0.2.9",
+    "buffered-writer": "~0.2.3",
+    "buffers": "~0.1.1",
+    "express": "~3.2.6",
+    "heapdump": "~0.2.0",
+    "net-cluster": "~0.0.2",
+    "nodeunit": "~0.8.0",
+    "toobusy": "~0.2.3",
+    "tracer": "~0.5.1",
+    "underscore": "~1.4.4"
+  },
+  "engines" : { 
+	  "node" : ">=0.10.10" 
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "node test.js"
+  }
+}
