@@ -33,8 +33,13 @@ function Room(options) {
     self.emptyclose = false;
     self.permanent = false;
     self.expiration = 0; // 0 for limitless
+    self.log = false; // not really used
+    self.recovery = false;
+    // NOTICE: below options are generated in runtime or passed only when recovery
     self.salt = '';
-    self.log = false;
+    self.key = '';
+    self.dataFile = '';
+    self.msgFile = '';
   };
 
   if (_.isUndefined(options)) {
@@ -43,7 +48,7 @@ function Room(options) {
   var op = _.defaults(options, defaultOptions);
   room.options = op;
   if (!_.isString(op.name) || op.name.length < 1) {
-    common.log('valid name');
+    logger.error('invalid room name');
     // TODO: throw exception
     return;
   }
@@ -77,10 +82,15 @@ function Room(options) {
       }
     },
     'gen_signedkey': ['load_salt', function(callback) {
-      var hash_source = room.options.name + room.options.salt;
-      var hashed = crypto.createHash('sha1');
-      hashed.update(hash_source, 'utf8');
-      room.signed_key = hashed.digest('hex');
+      if (self.options.recovery === true) {
+        var hash_source = room.options.name + room.options.salt;
+        var hashed = crypto.createHash('sha1');
+        hashed.update(hash_source, 'utf8');
+        room.signed_key = hashed.digest('hex');
+      }else{
+        room.signed_key = self.options.key;
+      }
+      
       callback();
     }],
     'start_checkTimer': function(callback){
@@ -103,28 +113,52 @@ function Room(options) {
       });
     },
     'gen_fileNames': ['ensure_dir', function(callback){
-      room.dataFile = function() {
-        var hash = crypto.createHash('sha1');
-        hash.update(room.options.name, 'utf8');
-        hash = hash.digest('hex');
-        return './data/room/' + hash + '.data';
-      } ();
+      if (self.options.recovery === true) {
+        room.dataFile = self.options.dataFile;
+        room.msgFile = self.options.msgFile;
+        room.msgFileSize = 0; // not really used, currently
+        fs.stat(room.dataFile, function(err, stats) {
+          if (err) {
+            logger.error('Cannot read stat of ', room.dataFile, ' during recovery!');
+            callback(err);
+          }else{
+            room.dataFileSize = stats.size;
+            callback();
+          }
+        });
+      }else{
+        room.dataFile = function() {
+          var hash = crypto.createHash('sha1');
+          hash.update(room.options.name, 'utf8');
+          hash = hash.digest('hex');
+          return './data/room/' + hash + '.data';
+        } ();
 
-      room.msgFile = function() {
-        var hash = crypto.createHash('sha1');
-        hash.update(op.name, 'utf8');
-        hash = hash.digest('hex');
-        return './data/room/' + hash + '.msg';
-      } ();
-      room.dataFileSize = 0;
-      room.msgFileSize = 0; // not really used, currently
-      callback();
+        room.msgFile = function() {
+          var hash = crypto.createHash('sha1');
+          hash.update(op.name, 'utf8');
+          hash = hash.digest('hex');
+          return './data/room/' + hash + '.msg';
+        } ();
+        room.dataFileSize = 0;
+        room.msgFileSize = 0; // not really used, currently
+        callback();
+      }
+      
     }],
     'create_dataFile': ['gen_fileNames', function(callback){
-      fs.truncate(room.dataFile, 0, callback);
+      if (self.options.recovery !== true) {
+        fs.truncate(room.dataFile, 0, callback);
+      }else{
+        callback();
+      }
     }],
     'create_msgFile': ['gen_fileNames', function(callback){
-      fs.truncate(room.msgFile, 0, callback);
+      if (self.options.recovery !== true) {
+        fs.truncate(room.msgFile, 0, callback);
+      }else{
+        callback();
+      }
     }],
     'make_dataStream': ['create_dataFile', function(callback){
       room.dataFile_writeStream = fs.createWriteStream(room.dataFile);

@@ -5,35 +5,58 @@ var _ = require('underscore');
 var domain = require('domain');
 var logger = require('tracer').dailyfile({root:'./logs'});
 var toobusy = require('toobusy');
+var async = require('async');
+var mongoose = require('mongoose');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
 // var express = require('express');
 // var httpServer = express();
 
-// this makes it possible to run, even there's uncaught exception.
-// FIXME: However, this may also drive program into unstable state. Only for debug.
-// process.on('uncaughtException', function(err) {
-//   logger.error(err);
-// });
-
 if (cluster.isMaster) {
-  // Fork workers.
-  function forkWorker() {
-    var worker = cluster.fork();
-    worker.on('message', function(msg) {
-      _.forEach(cluster.workers, function(ele, index, list) {
-            ele.send(msg);
+  process.title = 'painttyServer master';
+  async.auto({
+    'init_db': function(callback) {
+      mongoose.connect('mongodb://localhost/paintty');
+      var db = mongoose.connection;
+      db.on('error', function(er) {
+        logger.error('connection error:', er);
+        callback(er);
       });
-    });
-  }
+      db.once('open', function () {
+        callback();
+      });
+    },
+    'fork_child': ['init_db', function(callback){
+      // Fork workers.
+      function forkWorker(memberId) {
+        var worker = cluster.fork({'memberId': memberId});
+        worker.memberId = memberId;
+        worker.on('message', function(msg) {
+          _.each(cluster.workers, function(ele, index, list) {
+                ele.send(msg);
+          });
+        });
+      }
 
-  for (var i = 0; i < numCPUs; i++) {
-    forkWorker();
-  }
+      // TODO: remove fake number
+      for (var i = 0; i < 3; i++) {
+        forkWorker(i);
+      }
 
-  cluster.on('exit', function(worker, code, signal) {
-    logger.error('worker ', worker.process.pid, ' died');
-    forkWorker();
+      cluster.on('exit', function(worker, code, signal) {
+        logger.error('worker ', worker.process.pid, ' died');
+        if(worker.memberId){
+          logger.trace('Worker with memberId', worker.memberId, 'died');
+          forkWorker(worker.memberId);
+        }
+      });
+
+      callback();
+    }]
+  }, function(er, re){
+    if (er) {
+      logger.error('Error while init master process: ', er);
+    };
   });
   
 } else {
@@ -43,7 +66,16 @@ if (cluster.isMaster) {
     process.exit(1);
   });
   d1.run(function() {
-    var roomManager = new RoomManager({name: 'rmmgr', pubPort: 7070});
+
+    var memberId = 0;
+    if (process.env['memberId']) {
+      memberId = parseInt(process.env['memberId'], 10);
+    }else{
+      logger.error('Worker process inited without memberId!');
+    }
+
+    process.title = 'painttyServer child, memberId:' + memberId;
+     
     var d = domain.create();
     d.on('error', function(err) {
       logger.error('Error in Worker:', err);
@@ -71,13 +103,13 @@ if (cluster.isMaster) {
         process.exit();
       });
     });
-    d.run(function() {
-      roomManager.start();
+    var roomManager = new RoomManager({localId: memberId, name: 'rmmgr', pubPort: 7070});
+    roomManager.on('ready', function() {
+      d.run(function() {
+        roomManager.start();
+      });
     });
   });
-  
-  
-  
 }
 
 
