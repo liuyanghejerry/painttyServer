@@ -1,7 +1,6 @@
 var events = require('events');
 var fs = require('fs');
 var cluster = require('cluster');
-var domain = require('domain');
 var util = require("util");
 var crypto = require('crypto');
 var Buffers = require('buffers');

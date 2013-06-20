@@ -1,8 +1,6 @@
 ﻿var events = require('events');
 var cluster = require('cluster');
-// var http = require('http');
 var util = require("util");
-var domain = require('domain');
 var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
@@ -28,8 +26,8 @@ function RoomManager(options) {
     self.localId = 0; // Id to recover died rooms
     self.maxRoom = 50; // Limits the rooms
     self.pubPort = 3030; // Default public port. This is used to connect with clients or master.
-    self.log = false; // Log or not
-    self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died
+    self.log = false; // Log or not, not really used
+    self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died, in ms
   };
 
   if (_.isUndefined(options)) {
@@ -37,8 +35,8 @@ function RoomManager(options) {
   }
   self.op = _.defaults(options, defaultOptions);
 
-  self.roomObjs = {};
-  self.roomInfos = {};
+  self.roomObjs = {}; // store Room object
+  self.roomInfos = {};// store Room Info, only for broadcast within local machine
   
   self._ispubServerConnected = false;
   self._isRegSocketConnected = false;
@@ -279,10 +277,10 @@ function RoomManager(options) {
             r_self.pubServer.sendData(cli, new Buffer(jsString));
             return;
           }
-          var canvasWidth = infoObj['size']['width'];
-          var canvasHeight = infoObj['size']['height'];
-          // constrain mega canvas.
-          canvasWidth = (canvasWidth + canvasHeight) > 12960 ? 0 : canvasWidth;
+          var canvasWidth = parseInt(infoObj['size']['width'], 10);
+          var canvasHeight = parseInt(infoObj['size']['height'], 10);
+          // constrain canvas.
+          canvasWidth = ( canvasWidth > 0 && canvasHeight > 0 ) ? canvasWidth : 0;
           if (!canvasWidth || !canvasHeight) {
             var ret = {
               response: 'newroom',
@@ -325,74 +323,69 @@ function RoomManager(options) {
         }
         // end of busy check
 
-        var d = domain.create();
-        d.on('error', function(er) {
-          logger.error('Error in Domain:', er);
+
+        var room = new Room({
+          'name': name,
+          'maxLoad': maxLoad,
+          'welcomemsg': welcomemsg,
+          'emptyclose': emptyclose,
+          'password': password,
+          'canvasSize': canvasSize,
+          'expiration': 72 // 72 hours to close itself
         });
-        d.run(function() {
-          var room = new Room({
-            'name': name,
-            'maxLoad': maxLoad,
-            'welcomemsg': welcomemsg,
-            'emptyclose': emptyclose,
-            'password': password,
-            'canvasSize': canvasSize,
-            'expiration': 72 // 72 hours to close itself
-          });
 
-          room.on('create', function(info) {
-            var ret = {
-              response: 'newroom',
-              result: true,
-              'info': {
-                port: info['cmdPort'],
-                key: info['key']
-              }
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
-            r_self.roomObjs[infoObj['name']] = room;
-            var infoBlock = {
-              cmdPort: info['cmdPort'],
-              name: info['name'],
-              maxLoad: info['maxLoad'],
-              'private': info['private'],
-              'timestamp': (new Date()).getTime(),
-              currentLoad: 0
-            };
-            r_self.roomInfos[infoObj['name']] = infoBlock;
-            if (cluster.isWorker) {
-              cluster.worker.send({
-                'message': 'newroom',
-                'info': infoBlock
-              });
-            };
-
-            var RoomModel = MongoSchema.Model.Room;
-
-            RoomModel.create({
-             'name': info['name'],
-             'canvasSize': room['options']['canvasSize'],
-             'password': room['options']['password'],
-             'maxLoad': room['options']['maxLoad'],
-             'welcomemsg': room['options']['welcomemsg'],
-             'emptyclose': room['options']['emptyclose'],
-             'expiration': room['options']['expiration'],
-             'key': info['key'],
-             'dataFile': room['dataFile'],
-             'msgFile': room['msgFile'],
-             'localId': r_self.localId
-            }, function (err, small) {
-              if (err) return handleError(err);
-              // saved!
+        room.on('create', function(info) {
+          var ret = {
+            response: 'newroom',
+            result: true,
+            'info': {
+              port: info['cmdPort'],
+              key: info['key']
+            }
+          };
+          logger.log(ret);
+          var jsString = common.jsonToString(ret);
+          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          r_self.roomObjs[infoObj['name']] = room;
+          var infoBlock = {
+            cmdPort: info['cmdPort'],
+            name: info['name'],
+            maxLoad: info['maxLoad'],
+            'private': info['private'],
+            'timestamp': (new Date()).getTime(),
+            currentLoad: 0
+          };
+          r_self.roomInfos[infoObj['name']] = infoBlock;
+          if (cluster.isWorker) {
+            cluster.worker.send({
+              'message': 'newroom',
+              'info': infoBlock
             });
+          };
 
-            room.start();
-          }).on('close', function() {
-            delete r_self.roomObjs[room.options.name];
-            delete r_self.roomInfos[room.options.name];
+          var RoomModel = MongoSchema.Model.Room;
+
+          RoomModel.create({
+           'name': info['name'],
+           'canvasSize': room['options']['canvasSize'],
+           'password': room['options']['password'],
+           'maxLoad': room['options']['maxLoad'],
+           'welcomemsg': room['options']['welcomemsg'],
+           'emptyclose': room['options']['emptyclose'],
+           'expiration': room['options']['expiration'],
+           'key': info['key'],
+           'dataFile': room['dataFile'],
+           'msgFile': room['msgFile'],
+           'localId': r_self.localId
+          }, function (err, small) {
+            if (err) return handleError(err);
+            // saved!
           });
+
+          room.start();
+        }).on('close', function() {
+          delete r_self.roomObjs[room.options.name];
+          delete r_self.roomInfos[room.options.name];
         });
         
       },
@@ -400,23 +393,18 @@ function RoomManager(options) {
       callback();
     }],
     'start_server': ['init_router', 'init_db', function(callback) {
-      var d = domain.create();
-      d.on('error', function(er) {
-        logger.error('Error in pubServer of RoomManager:', er);
-      });
-      d.run(function(){
-        self.pubServer = new socket.SocketServer({
-          autoBroadcast: false
-        });
 
-        self.pubServer.on('listening', function() {
-          self._ispubServerConnected = true;
-          self.emit('listening');
-        }).on('message', function(client, data) {
-          var obj = common.stringToJson(data);
-          logger.log(obj);
-          self.router.message(client, obj);
-        });
+      self.pubServer = new socket.SocketServer({
+        autoBroadcast: false
+      });
+
+      self.pubServer.on('listening', function() {
+        self._ispubServerConnected = true;
+        self.emit('listening');
+      }).on('message', function(client, data) {
+        var obj = common.stringToJson(data);
+        logger.log(obj);
+        self.router.message(client, obj);
       });
 
       if (cluster.isWorker) {
