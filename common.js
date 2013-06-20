@@ -43,8 +43,7 @@ exports.jsonToString = function (j) {
   try {
     var str = JSON.stringify(j);
     return str;
-  } 
-  catch(e) {
+  } catch(e) {
     logger.error('Error in JSON', e, j);
     return '{}';
   }
@@ -54,15 +53,14 @@ exports.stringToJson = function (s) {
   try {
     var json = JSON.parse(s);
     return json;
-  } 
-  catch(e) {
+  } catch(e) {
     logger.error('Error in JSON', e, decoder.write(s));
     return {};
   }
 };
 
 exports.createNullDevice = function () {
-  if (os.type().match(/(windows)/i)) {
+  if (process.platform === 'win32') {
     return fs.createWriteStream('nul');
   }else{
     return fs.createWriteStream('/dev/null');

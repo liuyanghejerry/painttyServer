@@ -61,12 +61,8 @@ if (cluster.isMaster) {
   
 } else {
   var d1 = domain.create();
-  d1.on('error', function(er1) {
-    logger.error('Error with RoomManager:', er1);
-    process.exit(1);
-  });
-  d1.run(function() {
-
+  var roomManager;
+  // d1.run(function() {
     var memberId = 0;
     if (process.env['memberId']) {
       memberId = parseInt(process.env['memberId'], 10);
@@ -75,40 +71,42 @@ if (cluster.isMaster) {
     }
 
     process.title = 'painttyServer child, memberId:' + memberId;
-     
-    var d = domain.create();
-    d.on('error', function(err) {
-      logger.error('Error in Worker:', err);
-      try {
-        // make sure we close down within 30 seconds
-        var killtimer = setTimeout(function() {
-          process.exit(1);
-        }, 30000);
-        // But don't keep the process open just for that!
-        killtimer.unref();
 
+    roomManager = new RoomManager({localId: memberId, name: 'rmmgr', pubPort: 7070});
+    roomManager.on('ready', function() {
+      roomManager.start();
+    });
+
+    process.on('SIGINT', function() {
+      if (roomManager) {
+        roomManager.stop();
+      };
+      toobusy.shutdown();
+      process.exit();
+    });
+
+  // });
+  d1.on('error', function(er1) {
+    logger.error('Error with RoomManager:', er1);
+    try {
+      // make sure we close down within 30 seconds
+      var killtimer = setTimeout(function() {
+        process.exit(1);
+      }, 30000);
+      // But don't keep the process open just for that!
+      killtimer.unref();
+
+      if (roomManager) {
         var error_notify = '<p style="font-weight:bold;color:red;">完蛋了！！'+
                   '检测到服务端发生了一些故障，赶快逃离吧！！。</p>\n';
         roomManager.localcast(error_notify);
         roomManager.stop();
-      } catch(er) {
-        logger.error('Cannot gently close RoomManager:', err);
-      }
-
-      process.on('SIGINT', function() {
-        if (roomManager) {
-          roomManager.stop();
-        };
-        toobusy.shutdown();
-        process.exit();
-      });
-    });
-    var roomManager = new RoomManager({localId: memberId, name: 'rmmgr', pubPort: 7070});
-    roomManager.on('ready', function() {
-      d.run(function() {
-        roomManager.start();
-      });
-    });
+      };
+    } catch(er) {
+      logger.error('Cannot gently close RoomManager:', err);
+      toobusy.shutdown();
+      process.exit(1);
+    }
   });
 }
 

@@ -6,6 +6,7 @@ var crypto = require('crypto');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var async = require('async');
+var toobusy = require('toobusy');
 var logger = require('tracer').dailyfile({root:'./logs'});
 var bw = require("buffered-writer");
 var common = require('./common.js');
@@ -30,7 +31,7 @@ function Room(options) {
     self.maxLoad = 5;
     self.welcomemsg = '';
     self.emptyclose = false;
-    self.permanent = false;
+    self.permanent = true;
     self.expiration = 0; // 0 for limitless
     self.log = false; // not really used
     self.recovery = false;
@@ -81,13 +82,13 @@ function Room(options) {
       }
     },
     'gen_signedkey': ['load_salt', function(callback) {
-      if (self.options.recovery === true) {
+      if (room.options.recovery === true) {
         var hash_source = room.options.name + room.options.salt;
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
         room.signed_key = hashed.digest('hex');
       }else{
-        room.signed_key = self.options.key;
+        room.signed_key = room.options.key;
       }
       
       callback();
@@ -112,9 +113,9 @@ function Room(options) {
       });
     },
     'gen_fileNames': ['ensure_dir', function(callback){
-      if (self.options.recovery === true) {
-        room.dataFile = self.options.dataFile;
-        room.msgFile = self.options.msgFile;
+      if (room.options.recovery === true) {
+        room.dataFile = room.options.dataFile;
+        room.msgFile = room.options.msgFile;
         room.msgFileSize = 0; // not really used, currently
         fs.stat(room.dataFile, function(err, stats) {
           if (err) {
@@ -146,21 +147,21 @@ function Room(options) {
       
     }],
     'create_dataFile': ['gen_fileNames', function(callback){
-      if (self.options.recovery !== true) {
+      if (room.options.recovery !== true) {
         fs.truncate(room.dataFile, 0, callback);
       }else{
         callback();
       }
     }],
     'create_msgFile': ['gen_fileNames', function(callback){
-      if (self.options.recovery !== true) {
+      if (room.options.recovery !== true) {
         fs.truncate(room.msgFile, 0, callback);
       }else{
         callback();
       }
     }],
     'make_dataStream': ['create_dataFile', function(callback){
-      room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
+      room.dataFile_writeStream = fs.createWriteStream(room.dataFile, {flag: 'a+'});
       room.dataFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
       }).on('open', function() {
@@ -168,7 +169,7 @@ function Room(options) {
       });
     }],
     'make_msgStream': ['create_msgFile', function(callback){
-      room.msgFile_writeStream = fs.createWriteStream(room.msgFile);
+      room.msgFile_writeStream = fs.createWriteStream(room.msgFile, {flag: 'a+'});
       room.msgFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
       }).on('open', function() {
@@ -325,6 +326,19 @@ function Room(options) {
             return;
           }
         }
+
+        // if server is too busy
+        if (toobusy()) {
+          var ret = {
+            response: 'login',
+            result: false,
+            errcode: 305
+          };
+          logger.log(ret);
+          var jsString = common.jsonToString(ret);
+          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          return;
+        };
         // send info
         var ret = {
           response: 'login',
@@ -589,10 +603,12 @@ Room.prototype.close = function() {
   self.dataSocket.close();
   self.msgSocket.close();
   if (!self.options.permanent) {
+    logger.trace('Room file deleted when close, line 606');
     fs.unlink(self.dataFile,
     function() {});
     fs.unlink(self.msgFile,
     function() {});
+    self.emit('destroyed');
   }
   
   return this;

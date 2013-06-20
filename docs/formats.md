@@ -187,7 +187,7 @@ The login request must provide pwssword if room requires, or it fails.
 
 #### Request Login
 
-Login with password:
+Login without password:
 
 	{
 		request: "login",
@@ -196,7 +196,7 @@ Login with password:
 	}
 	
 
-Login without password:
+Login with password:
 
 	{
 		request: "login",
@@ -240,6 +240,7 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 * 302: invalid password or lack of password.
 * 303: room is full.
 * 304: you're banned.
+* 305: server is too busy.
 
 ### Room management
 

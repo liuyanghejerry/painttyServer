@@ -53,7 +53,6 @@ function RoomManager(options) {
       });
     },
     'init_db': function(callback) {
-      mongoose.connect('mongodb://localhost/paintty');
       var db = mongoose.connection;
       db.on('error', function(er) {
         logger.error('connection error:', er);
@@ -62,6 +61,7 @@ function RoomManager(options) {
       db.once('open', function () {
         callback();
       });
+      mongoose.connect('mongodb://localhost/paintty');
     },
     'init_router': ['ensure_dir', function(callback) {
       self.router = new Router();
@@ -293,8 +293,8 @@ function RoomManager(options) {
             return;
           }
           var canvasSize = {
-            width: parseInt(canvasWidth, 10),
-            height: parseInt(canvasHeight, 10)
+            width: canvasWidth,
+            height: canvasHeight
           };
         } else {
           var ret = {
@@ -365,20 +365,28 @@ function RoomManager(options) {
 
           var RoomModel = MongoSchema.Model.Room;
 
-          RoomModel.create({
-           'name': info['name'],
-           'canvasSize': room['options']['canvasSize'],
-           'password': room['options']['password'],
-           'maxLoad': room['options']['maxLoad'],
-           'welcomemsg': room['options']['welcomemsg'],
-           'emptyclose': room['options']['emptyclose'],
-           'expiration': room['options']['expiration'],
-           'key': info['key'],
-           'dataFile': room['dataFile'],
-           'msgFile': room['msgFile'],
-           'localId': r_self.localId
+          RoomModel.findOneAndUpdate(
+            {'name': info['name']}, 
+            {
+             'name': info['name'],
+             'canvasSize': room['options']['canvasSize'],
+             'password': room['options']['password'],
+             'maxLoad': room['options']['maxLoad'],
+             'welcomemsg': room['options']['welcomemsg'],
+             'emptyclose': room['options']['emptyclose'],
+             'expiration': room['options']['expiration'],
+             'key': info['key'],
+             'dataFile': room['dataFile'],
+             'msgFile': room['msgFile'],
+             'localId': r_self.localId
+          },
+          {
+            'upsert': true
           }, function (err, small) {
-            if (err) return handleError(err);
+            if (err) {
+              logger.error('Error when upsert new room: ', err);
+              return;
+            }
             // saved!
           });
 
@@ -386,6 +394,15 @@ function RoomManager(options) {
         }).on('close', function() {
           delete r_self.roomObjs[room.options.name];
           delete r_self.roomInfos[room.options.name];
+        }).on('destroyed', function() {
+          var RoomModel = MongoSchema.Model.Room;
+          RoomModel.remove({ 'name': room.options.name }, function (err) {
+            if (err) {
+              logger.error('Error when removing room from db:', err);
+              return;
+            }
+            logger.log('Room ', room.options.name, 'removed from db.');
+          });
         });
         
       },
@@ -457,12 +474,13 @@ function RoomManager(options) {
               'key': element.key,
               'expiration': element.expiration, // 72 hours to close itself
               'dataFile': element.dataFile,
-              'msgFile': element.msgFile
+              'msgFile': element.msgFile,
+              'recovery': true
             });
 
             n_room.on('create', function(info) {
               logger.log('Room recovered from db: ', element.name);
-              self.roomObjs[infoObj['name']] = n_room;
+              self.roomObjs[info['name']] = n_room;
               var infoBlock = {
                 cmdPort: info['cmdPort'],
                 name: info['name'],
@@ -471,17 +489,17 @@ function RoomManager(options) {
                 'timestamp': (new Date()).getTime(),
                 currentLoad: 0
               };
-              self.roomInfos[infoObj['name']] = infoBlock;
+              self.roomInfos[info['name']] = infoBlock;
               if (cluster.isWorker) {
                 cluster.worker.send({
                   'message': 'newroom',
                   'info': infoBlock
                 });
               };
-              room.start();
+              n_room.start();
             }).on('close', function() {
-              delete self.roomObjs[room.options.name];
-              delete self.roomInfos[room.options.name];
+              delete self.roomObjs[n_room.options.name];
+              delete self.roomInfos[n_room.options.name];
             });
           });
           callback();

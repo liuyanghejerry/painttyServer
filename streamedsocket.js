@@ -155,7 +155,7 @@ function SocketServer(options) {
     if (cli['stream_parser']) {
       cli.stream_parser.unpipe();
       delete cli['stream_parser'];
-    };
+    }
   };
 
   server.on('connection', function(cli) {
