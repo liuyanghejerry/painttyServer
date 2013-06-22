@@ -163,8 +163,8 @@ function SocketServer(options) {
     cli.setNoDelay(true);
     server.clients.push(cli);
     cli.on('close', function() {
-      cli.destroy();
       onClientExit(cli);
+      cli.destroy();
     }).on('error', function(err) {
       logger.error('Error with socket:', err);
     });
