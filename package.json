@@ -34,7 +34,8 @@
     "nodeunit": "~0.8.0",
     "toobusy": "~0.2.3",
     "tracer": "~0.5.1",
-    "underscore": "~1.4.4"
+    "underscore": "~1.4.4",
+    "mongoose": "~3.6.11"
   },
   "engines" : { 
 	  "node" : ">=0.10.10" 

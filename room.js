@@ -86,8 +86,10 @@ function Room(options) {
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
         room.signed_key = hashed.digest('hex');
+        logger.trace('generated key:', room.signed_key);
       }else{
         room.signed_key = room.options.key;
+        logger.trace('recovered key:', room.signed_key);
       }
       
       callback();
