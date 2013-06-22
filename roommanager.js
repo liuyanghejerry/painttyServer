@@ -365,9 +365,7 @@ function RoomManager(options) {
 
           var RoomModel = MongoSchema.Model.Room;
 
-          RoomModel.findOneAndUpdate(
-            {'name': info['name']}, 
-            {
+          var roomToSaveDb = {
              'name': info['name'],
              'canvasSize': room['options']['canvasSize'],
              'password': room['options']['password'],
@@ -375,19 +373,25 @@ function RoomManager(options) {
              'welcomemsg': room['options']['welcomemsg'],
              'emptyclose': room['options']['emptyclose'],
              'expiration': room['options']['expiration'],
+             'permanent': room['options']['permanent'],
              'key': info['key'],
              'dataFile': room['dataFile'],
              'msgFile': room['msgFile'],
-             'localId': r_self.localId
-          },
-          {
-            'upsert': true
-          }, function (err, small) {
-            if (err) {
-              logger.error('Error when upsert new room: ', err);
-              return;
-            }
-            // saved!
+             'localId': r_self.op.localId
+          };
+
+          RoomModel.findOneAndUpdate(
+            {'name': info['name']}, 
+            roomToSaveDb,
+            {
+              'upsert': true
+            }, function (err, small) {
+              if (err) {
+                logger.error('Error when upsert new room: ', err, roomToSaveDb);
+                return;
+              }
+              // saved!
+              logger.log('Room saved to db: ', roomToSaveDb);
           });
 
           room.start();
@@ -458,7 +462,7 @@ function RoomManager(options) {
     }],
     'recover_rooms': ['start_server', function(callback) {
       var RoomModel = MongoSchema.Model.Room;
-      RoomModel.find({ 'localId': self.localId }, function (err, r_rooms) {
+      RoomModel.find({ 'localId': self.op.localId }, function (err, r_rooms) {
         if (err) {
           logger.error('Error when query room from db: ', err);
           callback(err);
@@ -473,6 +477,7 @@ function RoomManager(options) {
               'canvasSize': element.canvasSize,
               'key': element.key,
               'expiration': element.expiration, // 72 hours to close itself
+              'permanent': element.permanent,
               'dataFile': element.dataFile,
               'msgFile': element.msgFile,
               'recovery': true

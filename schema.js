@@ -14,6 +14,7 @@ var roomSchema = mongoose.Schema({
     welcomemsg: String,
     emptyclose: Boolean,
     expiration: Number,
+    permanent: Boolean,
     key: String,
     dataFile: String,
     msgFile: String,

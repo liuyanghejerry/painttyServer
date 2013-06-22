@@ -11,7 +11,6 @@ var logger = require('tracer').dailyfile({root:'./logs'});
 var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
-var BufferedFile = require("./bufferedfile.js");
 var Router = require("./router.js");
 
 function Room(options) {
@@ -82,7 +81,7 @@ function Room(options) {
       }
     },
     'gen_signedkey': ['load_salt', function(callback) {
-      if (room.options.recovery === true) {
+      if (room.options.recovery !== true) {
         var hash_source = room.options.name + room.options.salt;
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
@@ -161,7 +160,7 @@ function Room(options) {
       }
     }],
     'make_dataStream': ['create_dataFile', function(callback){
-      room.dataFile_writeStream = fs.createWriteStream(room.dataFile, {flag: 'a+'});
+      room.dataFile_writeStream = fs.createWriteStream(room.dataFile, {flags: 'a'});
       room.dataFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
       }).on('open', function() {
@@ -169,7 +168,7 @@ function Room(options) {
       });
     }],
     'make_msgStream': ['create_msgFile', function(callback){
-      room.msgFile_writeStream = fs.createWriteStream(room.msgFile, {flag: 'a+'});
+      room.msgFile_writeStream = fs.createWriteStream(room.msgFile, {flags: 'a'});
       room.msgFile_writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
       }).on('open', function() {
@@ -394,6 +393,7 @@ function Room(options) {
             logger.log(jsString);
             r_room.cmdSocket.broadcastData(new Buffer(jsString));
             r_room.options.emptyclose = true;
+            r_room.options.permanent = false;
           }
         }
       },
