@@ -1,4 +1,4 @@
 *.data
 *.msg
 *.heapsnapshot
-/config/salt.key
+*.log

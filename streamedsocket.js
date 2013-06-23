@@ -2,10 +2,11 @@ var util = require("util");
 var net = require('net-cluster');
 var Buffers = require('buffers');
 var _ = require('underscore');
-var logger = require('tracer').dailyfile({root:'./logs'});
 var common = require('./common.js');
 var Transform = require('stream').Transform;
 var PassThrough = require('stream').PassThrough;
+var logger = common.logger;
+var globalConf = common.globalConf;
 
 function StreamedSocketProtocol(options) {
   if (!(this instanceof StreamedSocketProtocol))

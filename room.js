@@ -7,11 +7,12 @@ var Buffers = require('buffers');
 var _ = require('underscore');
 var async = require('async');
 var toobusy = require('toobusy');
-var logger = require('tracer').dailyfile({root:'./logs'});
 var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
 var Router = require("./router.js");
+var logger = common.logger;
+var globalConf = common.globalConf;
 
 function Room(options) {
   events.EventEmitter.call(this);
@@ -77,7 +78,7 @@ function Room(options) {
   async.auto({
     'load_salt': function(callback) {
       if (room.options.salt.length < 1) {
-        fs.readFile('./config/salt.key', function(err, data) {
+        fs.readFile(globalConf['salt']['path'], function(err, data) {
           if(err) {
             logger.error('Cannot load salt file:', err);
             callback(err);
@@ -106,10 +107,10 @@ function Room(options) {
       callback();
     },
     'ensure_dir': function(callback){
-      fs.exists('./data/room/',
+      fs.exists(globalConf['room']['path'],
       function(exists) {
         if (!exists) {
-          fs.mkdir('./data/room/', function(err){
+          fs.mkdir(globalConf['room']['path'], function(err){
             if (err) {
               logger.error('Error while creating dir for room: ', err);
               callback(err);
@@ -139,14 +140,14 @@ function Room(options) {
           var hash = crypto.createHash('sha1');
           hash.update(room.options.name, 'utf8');
           hash = hash.digest('hex');
-          return './data/room/' + hash + '.data';
+          return globalConf['room']['path'] + hash + '.data';
         } ();
 
         room.msgFile = function() {
           var hash = crypto.createHash('sha1');
           hash.update(op.name, 'utf8');
           hash = hash.digest('hex');
-          return './data/room/' + hash + '.msg';
+          return globalConf['room']['path'] + hash + '.msg';
         } ();
         room.dataFileSize = 0;
         room.msgFileSize = 0; // not really used, currently
@@ -208,19 +209,15 @@ function Room(options) {
           },
           'wait_flush': ['create_stream', function(callback) {
             var tmp_size = room.dataFileSize; // record so that it won't keep growing
-            // logger.trace('starting wait flush');
             function doWait() {
               fs.stat(room.dataFile, function(err, stat) {
                 if (err) {
                   logger.error('Error while getting stat of dataFile', err);
                   callback(err);
                 };
-                // logger.trace('Promised size: ', tmp_size, ', in file size:', stat.size);
                 if (stat.size >= tmp_size) { // don't need flush
-                  // logger.trace('Pass!');
                   callback();
                 }else{ //still need to wait
-                  // logger.trace('Wait again.');
                   setTimeout(doWait, 100);
                 }
               });
@@ -273,10 +270,7 @@ function Room(options) {
         });
 
         room.msgSocket.sendData(con, common.jsonToString({
-          content: '欢迎使用茶绘君，我们的主页：http://mrspaint.com。\n' 
-          + '如果您在使用中有任何疑问，' 
-          + '请在茶绘君贴吧留言：'
-           + 'http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD \n'
+          content: globalConf['room']['serverMsg']
         }));
         // TODO: use cmd channal
         // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
@@ -648,9 +642,10 @@ Room.prototype.close = function() {
 };
 
 Room.prototype.currentLoad = function() {
-  // do not count cmdSocket because it's a public socket
-  return Math.max(this.dataSocket.clients.length, 
-    this.msgSocket.clients.length);
+  // do not count cmdSocket.clients directly because it's a public socket
+  return (_.filter(this.cmdSocket.clients, function(cli){ 
+      return cli['username'] && cli['clientid']; 
+    })).length;
 };
 
 Room.prototype.notify = function(con, content) {

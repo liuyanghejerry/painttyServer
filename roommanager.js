@@ -4,7 +4,6 @@ var util = require("util");
 var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
-var logger = require('tracer').dailyfile({root:'./logs'});
 var toobusy = require('toobusy');
 var async = require('async');
 var mongoose = require('mongoose');
@@ -14,6 +13,8 @@ var socket = require('./streamedsocket.js');
 var Room = require('./room.js');
 var MongoSchema = require('./schema.js');
 var RoomModel = MongoSchema.Model.Room;
+var logger = common.logger;
+var globalConf = common.globalConf;
 
 function RoomManager(options) {
   events.EventEmitter.call(this);
@@ -26,7 +27,7 @@ function RoomManager(options) {
     self.name = ''; // Name of RoomManager
     self.localId = 0; // Id to recover died rooms
     self.maxRoom = 50; // Limits the rooms
-    self.pubPort = 3030; // Default public port. This is used to connect with clients or master.
+    self.pubPort = globalConf['manager']['publicPort']; // Default public port. This is used to connect with clients or master.
     self.log = false; // Log or not, not really used
     self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died, in ms
   };
@@ -43,16 +44,6 @@ function RoomManager(options) {
   self._isRegSocketConnected = false;
 
   async.auto({
-    'ensure_dir': function(callback) {
-      fs.exists('./data/',
-      function(exists) {
-        if (!exists) {
-          fs.mkdir('./data/', callback);
-        }else{
-          callback();
-        }
-      });
-    },
     'init_db': function(callback) {
       var db = mongoose.connection;
       db.on('error', function(er) {
@@ -62,9 +53,9 @@ function RoomManager(options) {
       db.once('open', function () {
         callback();
       });
-      mongoose.connect('mongodb://localhost/paintty');
+      mongoose.connect(globalConf['database']['connectionString']);
     },
-    'init_router': ['ensure_dir', function(callback) {
+    'init_router': function(callback) {
       self.router = new Router();
       self.router.reg('request', 'roomlist',
       function(cli, obj) {
@@ -411,7 +402,7 @@ function RoomManager(options) {
       },
       self);
       callback();
-    }],
+    },
     'start_server': ['init_router', 'init_db', function(callback) {
 
       self.pubServer = new socket.SocketServer({

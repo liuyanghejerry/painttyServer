@@ -6,7 +6,8 @@ var Buffers = require('buffers');
 var StringDecoder = require('string_decoder').StringDecoder;
 var decoder = new StringDecoder('utf8');
 var _ = require('underscore');
-var logger = require('tracer').dailyfile({root:'./logs'});
+var globalConf = require('./config/config.js');
+var logger = require('tracer').dailyfile({root: globalConf['log']['path']});
 
 exports.qCompress = function (buffer, fn) {
   var buffers = new Buffers();
@@ -66,3 +67,6 @@ exports.createNullDevice = function () {
     return fs.createWriteStream('/dev/null');
   }
 };
+
+exports.logger = logger;
+exports.globalConf = globalConf;

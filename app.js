@@ -3,22 +3,21 @@ var numCPUs = require('os').cpus().length;
 var heapdump = require('heapdump');
 var _ = require('underscore');
 var domain = require('domain');
-var logger = require('tracer').dailyfile({root:'./logs'});
 var toobusy = require('toobusy');
 var async = require('async');
 var mongoose = require('mongoose');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
+var logger = common.logger;
+var globalConf = common.globalConf;
 // var express = require('express');
 // var httpServer = express();
-
-// require('v8-profiler'); // debug purpose
 
 if (cluster.isMaster) {
   process.title = 'painttyServer master';
   async.auto({
     'init_db': function(callback) {
-      mongoose.connect('mongodb://localhost/paintty');
+      mongoose.connect(globalConf['database']['connectionString']);
       var db = mongoose.connection;
       db.on('error', function(er) {
         logger.error('connection error:', er);
@@ -73,7 +72,11 @@ if (cluster.isMaster) {
 
     process.title = 'painttyServer child, memberId:' + memberId;
 
-    roomManager = new RoomManager({localId: memberId, name: 'rmmgr', pubPort: 7070});
+    roomManager = new RoomManager({
+      localId: memberId, 
+      name: 'rmmgr', 
+      pubPort: globalConf['manager']['publicPort']
+    });
     roomManager.on('ready', function() {
       roomManager.start();
     });
