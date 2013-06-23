@@ -179,9 +179,15 @@ function SocketServer(options) {
     });
 
     if (op.autoBroadcast) {
+      if (!cli) {
+        logger.trace('client is missing, line 183');
+      };
       cli.pipe(cli.stream_parser, {end: false});
 
       if (server.nullDevice) {
+        if (!cli) {
+          logger.trace('client is missing, line 189');
+        };
         cli.stream_parser.pipe(server.nullDevice, {end: false});
       };
 
@@ -191,7 +197,12 @@ function SocketServer(options) {
           if(c.stream_parser){
             // only if history all sent
             cli.once('historydone', function() {
-              c.stream_parser.pipe(cli, { end: false });
+              if (c.stream_parser) {
+                c.stream_parser.pipe(cli, { end: false });
+              }else{
+                logger.trace('c.stream_parser is missing:', c);
+              }
+              
             });
           }else{
             logger.error('Cannot find stream_parser of client', c);
@@ -199,6 +210,9 @@ function SocketServer(options) {
         } 
       });
     }else{
+      if (!cli) {
+        logger.trace('client is missing, line 212');
+      };
       cli.pipe(cli.stream_parser, { end: false });
     };
   }).on('error', function(err) {

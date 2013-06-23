@@ -34,6 +34,7 @@ function Room(options) {
     self.expiration = 0; // 0 for limitless
     self.log = false; // not really used
     self.recovery = false;
+    self.lastCheckoutTimestamp = Date.now();
     // NOTICE: below options are generated in runtime or passed only when recovery
     self.salt = '';
     self.key = '';
@@ -56,14 +57,20 @@ function Room(options) {
 
   function prepareCheckoutTimer(r_room) {
     if (r_room.options.expiration) {
-      r_room.checkoutTimer = setTimeout(function onTimeout() {
+      r_room.checkoutTimer = setInterval(function onTimeout() {
+        var stampDiff = Date.now() - r_room.options.lastCheckoutTimestamp;
+        if ( stampDiff < r_room.options.expiration * 3600 * 1000 ) {
+          return;
+        };
+
         if (r_room.currentLoad() > 0) {
           r_room.options.emptyclose = true;
+          r_room.options.permanent = false;
         }else{
           r_room.close();
         }       
       },
-      r_room.options.expiration * 3600 * 1000);
+      2 * 3600 * 1000);
     }
   }
 
@@ -222,6 +229,9 @@ function Room(options) {
           }],
           'start_pipe': ['wait_flush', function(callback){
             con.inDataHistory = true;
+            if (!r_stream) {
+              logger.trace('client is missing, line 226');
+            };
             r_stream.pipe(con, { end: false });
           }],
           'send_to_clusters': function(callback){
@@ -288,6 +298,9 @@ function Room(options) {
           r_stream.unpipe();
           con.emit('historydone');
         });
+        if (!r_stream) {
+          logger.trace('client is missing, line 295');
+        };
         r_stream.pipe(con, { end: false });
         con.inMsgHistory = true;
         
@@ -494,10 +507,8 @@ function Room(options) {
           r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         }
         if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-          if (r_room.checkoutTimer) {
-            clearTimeout(r_room.checkoutTimer);
-            prepareCheckoutTimer(r_room);
-          }
+          r_room.options.lastCheckoutTimestamp = Date.now();
+          r_room.emit('checkout');
           var ret = {
             response: 'checkout',
             result: true,
@@ -567,6 +578,8 @@ function Room(options) {
   }, function(er, re){
     if (er) {
       logger.error('Error while creating Room: ', er);
+      room.options.permanent = false;
+      room.close();
     };
   });
 
@@ -590,8 +603,14 @@ Room.prototype.close = function() {
   var self = this;
   
   logger.log('Room', self.options.name, 'is closed.');
-  clearInterval(self.uploadCurrentInfoTimer);
-  clearTimeout(self.checkoutTimer);
+  if (self.uploadCurrentInfoTimer) {
+    clearInterval(self.uploadCurrentInfoTimer);
+  };
+
+  if (self.checkoutTimer) {
+    clearInterval(self.checkoutTimer);
+  };
+  
   self.emit('close');
   if (cluster.isWorker) {
     cluster.worker.send({
@@ -601,15 +620,26 @@ Room.prototype.close = function() {
       }
     })
   };
-  self.cmdSocket.close();
-  self.dataSocket.close();
-  self.msgSocket.close();
+  if (self.cmdSocket) {
+    self.cmdSocket.close();
+  };
+  if (self.dataSocket) {
+    self.dataSocket.close();
+  };
+  if (self.msgSocket) {
+    self.msgSocket.close();
+  };
+  
   if (!self.options.permanent) {
     logger.trace('Room file deleted when close, line 606');
-    fs.unlink(self.dataFile,
-    function() {});
-    fs.unlink(self.msgFile,
-    function() {});
+    if (self.dataFile) {
+      fs.unlink(self.dataFile);
+    };
+
+    if (self.dataFile) {
+      fs.unlink(self.msgFile);
+    };   
+    
     self.emit('destroyed');
   }
   

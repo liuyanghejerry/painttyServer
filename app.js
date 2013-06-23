@@ -12,6 +12,8 @@ var RoomManager = require('./roommanager.js');
 // var express = require('express');
 // var httpServer = express();
 
+// require('v8-profiler'); // debug purpose
+
 if (cluster.isMaster) {
   process.title = 'painttyServer master';
   async.auto({

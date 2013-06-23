@@ -13,6 +13,7 @@ var Router = require("./router.js");
 var socket = require('./streamedsocket.js');
 var Room = require('./room.js');
 var MongoSchema = require('./schema.js');
+var RoomModel = MongoSchema.Model.Room;
 
 function RoomManager(options) {
   events.EventEmitter.call(this);
@@ -363,8 +364,6 @@ function RoomManager(options) {
             });
           };
 
-          var RoomModel = MongoSchema.Model.Room;
-
           var roomToSaveDb = {
              'name': info['name'],
              'canvasSize': room['options']['canvasSize'],
@@ -374,6 +373,7 @@ function RoomManager(options) {
              'emptyclose': room['options']['emptyclose'],
              'expiration': room['options']['expiration'],
              'permanent': room['options']['permanent'],
+             'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
              'key': info['key'],
              'dataFile': room['dataFile'],
              'msgFile': room['msgFile'],
@@ -399,7 +399,6 @@ function RoomManager(options) {
           delete r_self.roomObjs[room.options.name];
           delete r_self.roomInfos[room.options.name];
         }).on('destroyed', function() {
-          var RoomModel = MongoSchema.Model.Room;
           RoomModel.remove({ 'name': room.options.name }, function (err) {
             if (err) {
               logger.error('Error when removing room from db:', err);
@@ -461,7 +460,6 @@ function RoomManager(options) {
       callback();
     }],
     'recover_rooms': ['start_server', function(callback) {
-      var RoomModel = MongoSchema.Model.Room;
       RoomModel.find({ 'localId': self.op.localId }, function (err, r_rooms) {
         if (err) {
           logger.error('Error when query room from db: ', err);
@@ -478,6 +476,7 @@ function RoomManager(options) {
               'key': element.key,
               'expiration': element.expiration, // 72 hours to close itself
               'permanent': element.permanent,
+              'lastCheckoutTimestamp': element.checkoutTimestamp,
               'dataFile': element.dataFile,
               'msgFile': element.msgFile,
               'recovery': true
@@ -505,6 +504,10 @@ function RoomManager(options) {
             }).on('close', function() {
               delete self.roomObjs[n_room.options.name];
               delete self.roomInfos[n_room.options.name];
+            }).on('checkout', function() {
+              RoomModel.findOneAndUpdate(
+                {'name': n_room.options.name}, 
+                {'checkoutTimestamp': n_room.options.lastCheckoutTimestamp});
             });
           });
           callback();
