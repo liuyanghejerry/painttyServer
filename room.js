@@ -545,6 +545,7 @@ function Room(options) {
             key: room.signed_key,
             'private': room.options.password.length > 0
           });
+          room.emit('checkout');
 
           function uploadCurrentInfo() {
             if (cluster.isWorker) {
