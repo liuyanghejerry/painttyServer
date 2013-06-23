@@ -13,6 +13,7 @@ var socket = require('./streamedsocket.js');
 var Room = require('./room.js');
 var MongoSchema = require('./schema.js');
 var RoomModel = MongoSchema.Model.Room;
+var db = mongoose.connection;
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -45,7 +46,6 @@ function RoomManager(options) {
 
   async.auto({
     'init_db': function(callback) {
-      var db = mongoose.connection;
       db.on('error', function(er) {
         logger.error('connection error:', er);
         callback(er);
@@ -551,6 +551,7 @@ RoomManager.prototype.stop = function() {
   function(item) {
     item.close();
   });
+  db.close();
   return this;
 };
 
