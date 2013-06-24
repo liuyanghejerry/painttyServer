@@ -145,6 +145,34 @@ function removeNoFileRooms(lcb) {
 
 }
 
+function removeEmptyCloseRooms(lcb) {
+  RoomModel.remove({"emptyclose": true}, function(err){
+    if (err) {
+      logger.error(err);
+      lcb(err);
+      return;
+    }
+    logger.trace('removeEmptyCloseRooms end');
+    lcb();
+  });
+}
+
+function insertLastCheckoutTime(lcb) {
+  RoomModel.update(
+    {"checkoutTimestamp": undefined}, 
+    {"checkoutTimestamp": Date.now()}, 
+    { multi: true },
+    function(err){
+      if (err) {
+        logger.error(err);
+        lcb(err);
+        return;
+      }
+      logger.trace('insertLastCheckoutTime end');
+      lcb();
+  });
+}
+
 async.auto({
   'init_db': function(callback) {
     db.on('error', function(er) {
@@ -163,7 +191,18 @@ async.auto({
   'removeNoFileRooms': ['removeTimeoutRooms', function(callback) {
     removeNoFileRooms(callback);
   }],
-  'close_db': ['removeTimeoutRooms', 'removeNoFileRooms', function(callback) {
+  'removeEmptyCloseRooms': ['removeNoFileRooms', function(callback) {
+    removeEmptyCloseRooms(callback)
+  }],
+  'insertLastCheckoutTime': ['removeEmptyCloseRooms', function(callback) {
+    insertLastCheckoutTime(callback)
+  }],
+  'close_db': [
+    'removeTimeoutRooms', 
+    'removeNoFileRooms', 
+    'removeEmptyCloseRooms', 
+    'insertLastCheckoutTime', 
+    function(callback) {
       db.close(function(err) {
         if (err) {
           logger.error(err);

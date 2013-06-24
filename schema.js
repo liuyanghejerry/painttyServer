@@ -15,6 +15,7 @@ var roomSchema = mongoose.Schema({
     emptyclose: Boolean,
     expiration: Number,
     permanent: Boolean,
+    initTimestamp: Number,
     checkoutTimestamp: Number,
     key: String,
     dataFile: String,

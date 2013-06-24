@@ -397,6 +397,15 @@ function RoomManager(options) {
             }
             logger.log('Room ', room.options.name, 'removed from db.');
           });
+        }).on('checkout', function() {
+          RoomModel.update(
+            {'name': room.options.name}, 
+            {'checkoutTimestamp': room.options.lastCheckoutTimestamp},
+            function(err) {
+              if (err) {
+                logger.error(err);
+              };
+            });
         });
         
       },
@@ -496,9 +505,22 @@ function RoomManager(options) {
               delete self.roomObjs[n_room.options.name];
               delete self.roomInfos[n_room.options.name];
             }).on('checkout', function() {
-              RoomModel.findOneAndUpdate(
+              RoomModel.update(
                 {'name': n_room.options.name}, 
-                {'checkoutTimestamp': n_room.options.lastCheckoutTimestamp});
+                {'checkoutTimestamp': n_room.options.lastCheckoutTimestamp},
+                function(err) {
+                  if (err) {
+                    logger.error(err);
+                  };
+                });
+            }).on('destroyed', function() {
+              RoomModel.remove({ 'name': n_room.options.name }, function (err) {
+                if (err) {
+                  logger.error('Error when removing room from db:', err);
+                  return;
+                }
+                logger.log('Room ', n_room.options.name, 'removed from db.');
+              });
             });
           });
           callback();
