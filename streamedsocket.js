@@ -135,15 +135,21 @@ function SocketServer(options) {
   var server = this;
   server.options = op;
   server.clients = [];
-  server.nullDevice = common.createNullDevice();
+  server.nullDevice = common.nullDevice;
 
   function onClientExit(cli) {
+    if (!cli) {
+      return;
+    };
     // no more output
     cli.unpipe();
+    cli.removeAllListeners();
     
     // erase from client list
     var index = server.clients.indexOf(cli);
-    server.clients.splice(index, 1);
+    if (index >= 0) {
+      server.clients.splice(index, 1);
+    };    
 
     // also remove it from other clients' pipe list
     _.forEach(server.clients, function(elm) {
@@ -155,8 +161,11 @@ function SocketServer(options) {
     // time to destroy all associated streams
     if (cli['stream_parser']) {
       cli.stream_parser.unpipe();
+      cli.stream_parser.removeAllListeners();
       delete cli['stream_parser'];
     }
+    cli.destroy();
+    cli = null;
   };
 
   server.on('connection', function(cli) {
@@ -165,9 +174,9 @@ function SocketServer(options) {
     server.clients.push(cli);
     cli.on('close', function() {
       onClientExit(cli);
-      cli.destroy();
     }).on('error', function(err) {
       logger.error('Error with socket:', err);
+      onClientExit(cli); // just in case close event doesn't happpen
     });
 
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
@@ -180,15 +189,9 @@ function SocketServer(options) {
     });
 
     if (op.autoBroadcast) {
-      if (!cli) {
-        logger.trace('client is missing, line 183');
-      };
       cli.pipe(cli.stream_parser, {end: false});
 
       if (server.nullDevice) {
-        if (!cli) {
-          logger.trace('client is missing, line 189');
-        };
         cli.stream_parser.pipe(server.nullDevice, {end: false});
       };
 
@@ -201,7 +204,7 @@ function SocketServer(options) {
               if (c.stream_parser) {
                 c.stream_parser.pipe(cli, { end: false });
               }else{
-                logger.trace('c.stream_parser is missing:', c);
+                onClientExit(c);
               }
               
             });
@@ -211,9 +214,6 @@ function SocketServer(options) {
         } 
       });
     }else{
-      if (!cli) {
-        logger.trace('client is missing, line 212');
-      };
       cli.pipe(cli.stream_parser, { end: false });
     };
   }).on('error', function(err) {
@@ -256,7 +256,6 @@ SocketServer.prototype.broadcastData = function (data) {
 };
 
 SocketServer.prototype.kick = function(cli) {
-  var server = this;
   cli.end();
 };
 

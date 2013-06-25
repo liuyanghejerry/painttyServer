@@ -70,3 +70,4 @@ exports.createNullDevice = function () {
 
 exports.logger = logger;
 exports.globalConf = globalConf;
+exports.nullDevice = exports.createNullDevice();

@@ -573,7 +573,10 @@ RoomManager.prototype.stop = function() {
   function(item) {
     item.close();
   });
+  delete self.roomObjs;
   db.close();
+  delete self.options;
+  self.removeAllListeners();
   return this;
 };
 

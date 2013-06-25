@@ -615,28 +615,47 @@ Room.prototype.close = function() {
       }
     })
   };
+
+  if (self.dataFile_writeStream) {
+    self.dataFile_writeStream.removeAllListeners();
+    delete self.dataFile_writeStream;
+  };
+
+  if (self.msgFile_writeStream) {
+    self.msgFile_writeStream.removeAllListeners();
+    delete self.msgFile_writeStream;
+  };
+
   if (self.cmdSocket) {
     self.cmdSocket.close();
+    delete self.cmdSocket;
   };
   if (self.dataSocket) {
     self.dataSocket.close();
+    delete self.dataSocket;
   };
   if (self.msgSocket) {
     self.msgSocket.close();
+    delete self.msgSocket;
   };
   
   if (!self.options.permanent) {
     logger.trace('Room file deleted when close, line 606');
     if (self.dataFile) {
       fs.unlink(self.dataFile);
+      delete self.dataFile;
     };
 
     if (self.dataFile) {
       fs.unlink(self.msgFile);
+      delete self.msgFile;
     };   
     
     self.emit('destroyed');
   }
+
+  delete self.options;
+  self.removeAllListeners();
   
   return this;
 };
