@@ -165,7 +165,7 @@ function SocketServer(options) {
       delete cli['stream_parser'];
     }
     cli.destroy();
-    cli = null;
+    cli.isDead = true;
   };
 
   server.on('connection', function(cli) {

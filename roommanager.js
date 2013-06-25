@@ -443,9 +443,11 @@ function RoomManager(options) {
 
         function roomInfoRefresh() {
           var now = (new Date()).getTime();
-          // logger.debug('roomInfo refreshed');
           _.each(self.roomInfos, function(ele, ind, list) {
-            // logger.debug(ele['name'], ':', ele['timestamp']);
+            if (!ele || ele.name) {
+              logger.warn('invalid room info obj found');
+              return;
+            };
             if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
               if(list[ele['name']]){
                 logger.warn(ele['name'], 'is timeout and deleted.');
@@ -453,6 +455,7 @@ function RoomManager(options) {
               } 
             }
           });
+          // self.roomInfos = _.filter(self.roomInfos, function(obj){ return !_.isString(obj.name); });
         }
 
         self.roomInfoRefreshTimer = setInterval(roomInfoRefresh, self.op.roomInfoRefreshCycle);
@@ -568,15 +571,22 @@ RoomManager.prototype.start = function() {
 
 RoomManager.prototype.stop = function() {
   var self = this;
+  if (cluster.isWorker) {
+    cluster.worker.removeAllListeners();
+    cluster.worker.disconnect();
+  };
+  
   clearInterval(self.roomInfoRefreshTimer);
   _.each(self.roomObjs,
   function(item) {
-    item.close();
+    if (item.close) {
+      item.close();
+    };
   });
+  self.removeAllListeners();
   delete self.roomObjs;
   db.close();
   delete self.options;
-  self.removeAllListeners();
   return this;
 };
 
@@ -584,7 +594,9 @@ RoomManager.prototype.localcast = function(msg) {
   var self = this;
   _.each(self.roomObjs,
   function(item) {
-    item.bradcastMessage(msg);
+    if (item.bradcastMessage) {
+      item.bradcastMessage(msg);
+    }
   });
   return this;
 };

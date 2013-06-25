@@ -1,6 +1,7 @@
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
-var heapdump = require('heapdump');
+// var heapdump = require('heapdump');
+var agent = require('webkit-devtools-agent');
 var _ = require('underscore');
 var domain = require('domain');
 var toobusy = require('toobusy');
@@ -44,10 +45,17 @@ if (cluster.isMaster) {
       }
 
       cluster.on('exit', function(worker, code, signal) {
-        logger.error('worker ', worker.process.pid, ' died');
+        if (!worker.process) {
+          logger.error('worker destroyed before exit event handled');
+        }else{
+          logger.error('worker ', worker.process.pid, ' died');
+        }
+        
         if(worker.memberId){
-          logger.trace('Worker with memberId', worker.memberId, 'died');
+          logger.warn('Worker with memberId', worker.memberId, 'died');
           forkWorker(worker.memberId);
+        }else{
+          logger.error('Worker died without memberId');
         }
       });
 
