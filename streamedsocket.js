@@ -135,7 +135,7 @@ function SocketServer(options) {
   var server = this;
   server.options = op;
   server.clients = [];
-  server.nullDevice = common.createNullDevice();
+  server.nullDevice = common.nullDevice;
 
   function onClientExit(cli) {
     // no more output
