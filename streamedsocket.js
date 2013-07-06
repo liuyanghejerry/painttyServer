@@ -4,7 +4,6 @@ var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
 var Transform = require('stream').Transform;
-var PassThrough = require('stream').PassThrough;
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -261,3 +260,4 @@ SocketServer.prototype.kick = function(cli) {
 };
 
 exports.SocketServer = SocketServer;
+exports.StreamedSocketProtocol = StreamedSocketProtocol;

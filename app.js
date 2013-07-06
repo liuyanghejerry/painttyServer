@@ -8,12 +8,15 @@ var async = require('async');
 var mongoose = require('mongoose');
 var common = require('./common.js');
 var RoomManager = require('./roommanager.js');
+var socket = require('./streamedsocket.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 // var express = require('express');
 // var httpServer = express();
 
 if (cluster.isMaster) {
+  var localSocket = null;
+  var router = null;
   process.title = 'painttyServer master';
   async.auto({
     'init_db': function(callback) {
@@ -27,7 +30,49 @@ if (cluster.isMaster) {
         callback();
       });
     },
-    'fork_child': ['init_db', function(callback){
+    'init_local_socket': ['init_db', function(callback){
+      router = new Router();
+
+      rout.reg('request', 'broadcast', function(cli, obj){
+        var msg = obj['msg'];
+        if (!_.isString(msg)) {
+          var ret = {
+            'response': 'broadcast',
+            'result': false
+          };
+          return;
+        };
+        var send_to_workers = {
+          message: 'broadcast',
+          content: msg
+        };
+        var w = cluster.workers;
+        if (w[0]) {
+          w[0].send(send_to_workers);
+        };
+        
+        var ret = {
+          'response': 'broadcast',
+          'result': true
+        };
+        var jsString = common.jsonToString(ret);
+        cli.sendData(cli, new Buffer(jsString));
+      });
+
+      localSocket = new socket.SocketServer({
+        autoBroadcast: false
+      });
+
+      localSocket.on('message', function(client, data) {
+        var obj = common.stringToJson(data);
+        logger.log(obj);
+        self.router.message(client, obj);
+      }).on('error', function(err){
+        logger.error(err);
+      });
+      localSocket.listen('56565', '127.0.0.1');
+    }],
+    'fork_child': ['init_local_socket', function(callback){
       // Fork workers.
       function forkWorker(memberId) {
         var worker = cluster.fork({'memberId': memberId});

@@ -437,8 +437,10 @@ function RoomManager(options) {
           }else if (msg['message'] == 'roomclose') {
             if (self.roomInfos[msg['info']['name']]) {
               delete self.roomInfos[msg['info']['name']];
-            };
-          };
+            }
+          }else if(msg['message'] == 'broadcast') {
+            self.localcast(msg['content']);
+          }
         });
 
         function roomInfoRefresh() {

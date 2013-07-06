@@ -547,7 +547,7 @@ Example:
 
 Note, blocks should never contains blocks.
 
-### Text Message
+#### Text Message
 
 	{
 		from: "",
@@ -556,3 +556,25 @@ Note, blocks should never contains blocks.
 	}
 
 Since server doesn't validate message at all, both `from` and `to` is not reliable. If our server does want to send a message, use cmd channal instead.
+
+### Local Socket
+
+We added a local socket recently, to make it possible to control server after established.
+
+Since we don't use password to auth, local socket should bound to 127.0.0.1.
+
+#### Broadcast
+
+send:
+	{
+		request: "broadcast",
+		msg:"We're closing server in 2 min!"
+	}
+
+receive:
+
+	{
+		response: "broadcast",
+		result: true
+	}
+
