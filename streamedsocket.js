@@ -34,6 +34,7 @@ function protocolPack(data) {
   var len = data.length;
   var c1, c2, c3, c4;
   var tmp = new Buffer(4);
+  // tmp["position_protocolPack"] = "protocolPack";
   c1 = len & 0xFF;
   len >>= 8;
   c2 = len & 0xFF;
@@ -45,7 +46,10 @@ function protocolPack(data) {
   tmp[1] = c3;
   tmp[2] = c2;
   tmp[3] = c1;
-  return Buffer.concat([tmp, data], 4+data.length);
+  var packed = Buffer.concat([tmp, data], 4+data.length);
+  tmp = null;
+  data = null;
+  return packed;
 };
 
 StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
@@ -55,6 +59,7 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
   function GETPACKAGESIZEFROMDATA() {
     var pg_size_array = stream_protocol._buf.splice(0, 4);
     pg_size_array = pg_size_array.toBuffer();
+    // pg_size_array["position_GETPACKAGESIZEFROMDATA"] = "GETPACKAGESIZEFROMDATA";
     var pg_size = (pg_size_array[0] << 24) 
                 + (pg_size_array[1] << 16) 
                 + (pg_size_array[2] << 8) 
@@ -65,6 +70,7 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
   function READRAWBYTES(size) {
     var data = stream_protocol._buf.splice(0, size);
     data = data.toBuffer();
+    // data["position_READRAWBYTES"] = "READRAWBYTES";
     return data;
   }
   
@@ -224,21 +230,30 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendData = function (cli, data, fn) {
   var server = this;
+  // data["position_sendData0"] = "sendData";
   if(server.options.compressed === true){
     common.qCompress(data, function(d) {
       var tmpData = new Buffer(1);
       tmpData[0] = 0x1;
+      // tmpData["position_sendData1"] = "sendData";
       var r_data = Buffer.concat([tmpData, d]);
+      // r_data["position_sendData2"] = "sendData";
       if ( _.isFunction(fn) ) {
         cli.write( protocolPack(r_data), fn );
       }else{
         cli.write( protocolPack(r_data) );
       }
+      tmpData = null;
+      d = null;
+      r_data = null;
     });
+    data = null;
   }else{
     var tmpData = new Buffer(1);
     tmpData[0] = 0x0;
+    // tmpData["position_sendData3"] = "sendData";
     var r_data = Buffer.concat([tmpData, data]);
+    // r_data["position_sendData4"] = "sendData";
     if ( _.isFunction(fn) ) {
       cli.write( protocolPack(r_data), fn );
     }else{

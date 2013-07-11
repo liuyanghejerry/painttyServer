@@ -7,6 +7,7 @@ var toobusy = require('toobusy');
 var async = require('async');
 var mongoose = require('mongoose');
 var common = require('./common.js');
+var Router = require("./router.js");
 var RoomManager = require('./roommanager.js');
 var socket = require('./streamedsocket.js');
 var logger = common.logger;
@@ -33,7 +34,7 @@ if (cluster.isMaster) {
     'init_local_socket': ['init_db', function(callback){
       router = new Router();
 
-      rout.reg('request', 'broadcast', function(cli, obj){
+      router.reg('request', 'broadcast', function(cli, obj){
         var msg = obj['msg'];
         if (!_.isString(msg)) {
           var ret = {
@@ -71,6 +72,7 @@ if (cluster.isMaster) {
         logger.error(err);
       });
       localSocket.listen('56565', '127.0.0.1');
+      callback();
     }],
     'fork_child': ['init_local_socket', function(callback){
       // Fork workers.
