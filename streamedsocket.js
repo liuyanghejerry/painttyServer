@@ -3,7 +3,7 @@ var net = require('net-cluster');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
-var Transform = require('stream').Transform;
+var Writable = require('stream').Writable;
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -11,7 +11,7 @@ function StreamedSocketProtocol(options) {
   if (!(this instanceof StreamedSocketProtocol))
     return new StreamedSocketProtocol(options);
 
-  Transform.call(this, options);
+  Writable.call(this, options);
 
   var defaultOptions = {
     client: null
@@ -28,7 +28,7 @@ function StreamedSocketProtocol(options) {
   this._dataSize = 0;
 }
 
-util.inherits(StreamedSocketProtocol, Transform);
+util.inherits(StreamedSocketProtocol, Writable);
 
 function protocolPack(data) {
   var len = data.length;
@@ -52,25 +52,24 @@ function protocolPack(data) {
   return packed;
 };
 
-StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
+StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
   var stream_protocol = this;
   stream_protocol._buf.push(chunk);
   
   function GETPACKAGESIZEFROMDATA() {
     var pg_size_array = stream_protocol._buf.splice(0, 4);
     pg_size_array = pg_size_array.toBuffer();
-    // pg_size_array["position_GETPACKAGESIZEFROMDATA"] = "GETPACKAGESIZEFROMDATA";
     var pg_size = (pg_size_array[0] << 24) 
                 + (pg_size_array[1] << 16) 
                 + (pg_size_array[2] << 8) 
                 + pg_size_array[3];
+    pg_size_array = null;
     return pg_size;
   }
   
   function READRAWBYTES(size) {
     var data = stream_protocol._buf.splice(0, size);
     data = data.toBuffer();
-    // data["position_READRAWBYTES"] = "READRAWBYTES";
     return data;
   }
   
@@ -113,12 +112,16 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
     }else{
       stream_protocol.emit('message', stream_protocol._client, dataBlock);
     }
-    
-    stream_protocol.push(repacked);
     stream_protocol._dataSize = 0;
   }
-
   done();
+};
+
+StreamedSocketProtocol.prototype.cleanup = function() {
+  this._buf = null;
+  this._client = null;
+  this._options.client = null;
+  this._options = null;
 };
 
 
@@ -126,7 +129,6 @@ function SocketServer(options) {
   net.Server.call(this);
   
   var defaultOptions = {
-    autoBroadcast: true,
     compressed: true,
     keepAlive: true,
     indebug: false
@@ -150,16 +152,9 @@ function SocketServer(options) {
     var index = server.clients.indexOf(cli);
     server.clients.splice(index, 1);
 
-    // also remove it from other clients' pipe list
-    _.forEach(server.clients, function(elm) {
-      if(elm['stream_parser']){
-        elm.stream_parser.unpipe(cli);
-      }
-    });
-
-    // time to destroy all associated streams
+    // time to destroy associated stream
     if (cli['stream_parser']) {
-      cli.stream_parser.unpipe();
+      cli['stream_parser'].cleanup();
       delete cli['stream_parser'];
     }
   };
@@ -178,49 +173,16 @@ function SocketServer(options) {
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
     cli.stream_parser.on('datapack', function(c, d) {
       server.emit('datapack', c, d);
+      c.emit('datapack', c, d);
     });
 
     cli.stream_parser.on('message', function(c, d) {
       server.emit('message', c, d);
+      c.emit('message', c, d);
     });
 
-    if (op.autoBroadcast) {
-      if (!cli) {
-        logger.trace('client is missing, line 183');
-      };
-      cli.pipe(cli.stream_parser, {end: false});
+    cli.pipe(cli.stream_parser);
 
-      if (server.nullDevice) {
-        if (!cli) {
-          logger.trace('client is missing, line 189');
-        };
-        cli.stream_parser.pipe(server.nullDevice, {end: false});
-      };
-
-      _.each(server.clients, function(c) {
-        if(c != cli){
-          cli.stream_parser.pipe(c, { end: false });
-          if(c.stream_parser){
-            // only if history all sent
-            cli.once('historydone', function() {
-              if (c.stream_parser) {
-                c.stream_parser.pipe(cli, { end: false });
-              }else{
-                logger.trace('c.stream_parser is missing:', c);
-              }
-              
-            });
-          }else{
-            logger.error('Cannot find stream_parser of client', c);
-          }
-        } 
-      });
-    }else{
-      if (!cli) {
-        logger.trace('client is missing, line 212');
-      };
-      cli.pipe(cli.stream_parser, { end: false });
-    };
   }).on('error', function(err) {
     logger.error('Error with socket:', err);
   });
@@ -230,14 +192,11 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendData = function (cli, data, fn) {
   var server = this;
-  // data["position_sendData0"] = "sendData";
   if(server.options.compressed === true){
     common.qCompress(data, function(d) {
       var tmpData = new Buffer(1);
       tmpData[0] = 0x1;
-      // tmpData["position_sendData1"] = "sendData";
       var r_data = Buffer.concat([tmpData, d]);
-      // r_data["position_sendData2"] = "sendData";
       if ( _.isFunction(fn) ) {
         cli.write( protocolPack(r_data), fn );
       }else{
@@ -251,9 +210,7 @@ SocketServer.prototype.sendData = function (cli, data, fn) {
   }else{
     var tmpData = new Buffer(1);
     tmpData[0] = 0x0;
-    // tmpData["position_sendData3"] = "sendData";
     var r_data = Buffer.concat([tmpData, data]);
-    // r_data["position_sendData4"] = "sendData";
     if ( _.isFunction(fn) ) {
       cli.write( protocolPack(r_data), fn );
     }else{

@@ -10,6 +10,7 @@ var toobusy = require('toobusy');
 var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
+var Radio = require('./radio.js');
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
@@ -125,16 +126,6 @@ function Room(options) {
       if (room.options.recovery === true) {
         room.dataFile = room.options.dataFile;
         room.msgFile = room.options.msgFile;
-        room.msgFileSize = 0; // not really used, currently
-        fs.stat(room.dataFile, function(err, stats) {
-          if (err) {
-            logger.error('Cannot read stat of ', room.dataFile, ' during recovery!');
-            callback(err);
-          }else{
-            room.dataFileSize = stats.size;
-            callback();
-          }
-        });
       }else{
         room.dataFile = function() {
           var hash = crypto.createHash('sha1');
@@ -149,88 +140,29 @@ function Room(options) {
           hash = hash.digest('hex');
           return globalConf['room']['path'] + hash + '.msg';
         } ();
-        room.dataFileSize = 0;
-        room.msgFileSize = 0; // not really used, currently
         callback();
       }
       
     }],
-    'create_dataFile': ['gen_fileNames', function(callback){
-      if (room.options.recovery !== true) {
-        fs.truncate(room.dataFile, 0, callback);
-      }else{
-        callback();
-      }
-    }],
-    'create_msgFile': ['gen_fileNames', function(callback){
-      if (room.options.recovery !== true) {
-        fs.truncate(room.msgFile, 0, callback);
-      }else{
-        callback();
-      }
-    }],
-    'make_dataStream': ['create_dataFile', function(callback){
-      room.dataFile_writeStream = fs.createWriteStream(room.dataFile, {flags: 'a'});
-      room.dataFile_writeStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      }).on('open', function() {
-        callback();
+    'create_radio': ['gen_fileNames', function(callback){
+      room.radio = new Radio({
+        'dataFile': room.dataFile,
+        'msgFile': room.msgFile,
+        'recovery': room.options.recovery
       });
+      logger.trace('create_radio works!');
+      room.radio.once('ready', callback);
     }],
-    'make_msgStream': ['create_msgFile', function(callback){
-      room.msgFile_writeStream = fs.createWriteStream(room.msgFile, {flags: 'a'});
-      room.msgFile_writeStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      }).on('open', function() {
-        callback();
-      });
-    }],
-    'init_dataSocket': ['make_dataStream', function(callback){
+    'init_dataSocket': ['create_radio', function(callback){
       room.dataSocket = new socket.SocketServer();
       room.dataSocket.maxConnections = room.options.maxLoad;
-      room.dataSocket.on('datapack',
-      function(cli, dbuf) {
-        room.dataFile_writeStream.write(dbuf);
-        room.dataFileSize += dbuf.length;
-      }).on('connection',
+      room.dataSocket.on('connection',
       function(con) {
-        var r_stream;
         async.auto({
-          'create_stream': function(callback){
-            r_stream = fs.createReadStream(room.dataFile);
-            r_stream.on('error', function(er){
-              logger.error('Error while streaming', er);
-            }).on('end', function(){
-              con.inDataHistory = false;
-              r_stream.unpipe();
-              con.emit('historydone');
-            });
+          'join_radio': function(callback){
+            room.radio.joinDataGroup(con);
             callback();
           },
-          'wait_flush': ['create_stream', function(callback) {
-            var tmp_size = room.dataFileSize; // record so that it won't keep growing
-            function doWait() {
-              fs.stat(room.dataFile, function(err, stat) {
-                if (err) {
-                  logger.error('Error while getting stat of dataFile', err);
-                  callback(err);
-                };
-                if (stat.size >= tmp_size) { // don't need flush
-                  callback();
-                }else{ //still need to wait
-                  setTimeout(doWait, 100);
-                }
-              });
-            }
-            doWait();
-          }],
-          'start_pipe': ['wait_flush', function(callback){
-            con.inDataHistory = true;
-            if (!r_stream) {
-              logger.trace('client is missing, line 226');
-            };
-            r_stream.pipe(con, { end: false });
-          }],
           'send_to_clusters': function(callback){
             if (cluster.isWorker) {
               cluster.worker.send({
@@ -244,14 +176,8 @@ function Room(options) {
             callback();
           }
         });
-      });
-      callback();
-    }],
-    'init_msgSocket': ['make_msgStream', function(callback){
-      room.msgSocket = new socket.SocketServer();
-      room.msgSocket.maxConnections = room.options.maxLoad;
-      room.msgSocket.on('connection', function(con) {
-        con.on('end', function() {
+
+        con.once('close', function() {
           if (cluster.isWorker) {
             cluster.worker.send({
               'message': 'loadchange',
@@ -260,7 +186,16 @@ function Room(options) {
                 'currentLoad': room.currentLoad()
               }
             });
-          };
+          }
+        });
+      });
+      callback();
+    }],
+    'init_msgSocket': ['create_radio', function(callback){
+      room.msgSocket = new socket.SocketServer();
+      room.msgSocket.maxConnections = room.options.maxLoad;
+      room.msgSocket.on('connection', function(con) {
+        con.once('close', function() {
           if (room.options.emptyclose) {
             logger.debug('On socket exits, currentLoad:', room.currentLoad());
             if (room.currentLoad() <= 1) { // when exit, still connected on.
@@ -284,23 +219,9 @@ function Room(options) {
             content: room.options.welcomemsg + '\n'
           }));
         }
-        var r_stream = fs.createReadStream(room.msgFile);
-        r_stream.on('error', function(er){
-          logger.error('Error while streaming', er);
-        }).on('end', function() {
-          con.inMsgHistory = false;
-          r_stream.unpipe();
-          con.emit('historydone');
-        });
-        if (!r_stream) {
-          logger.trace('client is missing, line 295');
-        };
-        r_stream.pipe(con, { end: false });
-        con.inMsgHistory = true;
+
+        room.radio.joinDataGroup(con);
         
-      }).on('datapack',
-      function(cli, dbuf) {
-        room.msgFile_writeStream.write(dbuf);
       });
       callback();
     }],
@@ -352,7 +273,7 @@ function Room(options) {
           response: 'login',
           result: true,
           info: {
-            historysize: r_room.dataFileSize,
+            historysize: r_room.radio.dataLength(),
             dataport: r_room.ports().dataPort,
             msgport: r_room.ports().msgPort,
             size: r_room.options.canvasSize,
@@ -417,30 +338,19 @@ function Room(options) {
           var jsString = common.jsonToString(ret);
           r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         } else {
-          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {      
-            fs.truncate(r_room.dataFile, 0, function(err){
-              if(err) {
-                  logger.error(err);
-                  return;
-              }
-              r_room.dataFileSize = 0;
-              room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
-              room.dataFile_writeStream.on('error', function(er){
-                logger.error('Error while streaming', er);
-              });
-
-              var ret = {
-                response: 'clearall',
-                result: true
-              };
-              var jsString = common.jsonToString(ret);
-              r_room.cmdSocket.sendData(cli, new Buffer(jsString));
-              var ret_all = {
-                action: 'clearall',
-              };
-              jsString = common.jsonToString(ret_all);
-              r_room.cmdSocket.broadcastData(new Buffer(jsString));
-            });
+          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
+            r_room.radio.prune();
+            var ret = {
+              response: 'clearall',
+              result: true
+            };
+            var jsString = common.jsonToString(ret);
+            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            var ret_all = {
+              action: 'clearall',
+            };
+            jsString = common.jsonToString(ret_all);
+            r_room.cmdSocket.broadcastData(new Buffer(jsString));
           } else {
             var ret = {
               response: 'clearall',

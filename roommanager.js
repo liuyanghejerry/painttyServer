@@ -414,9 +414,7 @@ function RoomManager(options) {
     },
     'start_server': ['init_router', 'init_db', function(callback) {
 
-      self.pubServer = new socket.SocketServer({
-        autoBroadcast: false
-      });
+      self.pubServer = new socket.SocketServer();
 
       self.pubServer.on('listening', function() {
         self._ispubServerConnected = true;
