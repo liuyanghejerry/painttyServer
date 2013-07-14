@@ -37,7 +37,6 @@ function RadioReceiver(options) {
     },
     'create_writeStream': ['create_file', function(callback){
       self.writeStream = fs.createWriteStream(self.options.filename, {flags: 'a'});
-      self.lastPos = 0;
       self.writeStream.on('error', function(er){
         logger.error('Error while streaming', er);
       }).once('open', function() {
@@ -54,14 +53,24 @@ function RadioReceiver(options) {
           callback();
         }
       });
-      // self.readStream.on('error', function(er){
-      //   logger.error('Error while streaming', er);
-      // }).once('open', function(fd) {
-      //   self.readStreamFd = fd;
-      //   callback();
-      // });
     }],
-    'ready': ['create_file', 'create_writeStream', 'open_file_for_read', function(callback) {
+    'fecth_size': ['open_file_for_read', function(callback){
+      if (self.options.recovery === true) {
+        fs.fstat(self.readStreamFd, function(err, stats){
+          if (err) {
+            logger.error('Error while getting stats of archive file', err);
+            callback(err);
+          }else{
+            self.lastPos = stats.size;
+            callback();
+          }
+        });
+      }else{
+        self.lastPos = 0;
+        callback();
+      }
+    }],
+    'ready': ['create_file', 'open_file_for_read', 'fecth_size', function(callback) {
       self.emit('ready');
       callback();
     }]
@@ -77,20 +86,24 @@ util.inherits(RadioReceiver, events.EventEmitter);
 RadioReceiver.prototype.write = function(chunk, source) {
   if(this.writeStream) {
     var r = this;
+    var d_times = 0;
+
+    var lPos = r.lastPos;
+    this.lastPos += chunk.length;
+    var chunkLength = chunk.length;
+
     this.writeStream.write(chunk, function() {
-      var lPos = r.lastPos;
-      r.lastPos += chunk.length;
-      var chunkLength = chunk.length;
-      
       async.each(r.clients, function(ele, callback){
         if (ele != source) {
+          d_times ++;
           var pendingNum = ele.pendingList.push({'start': lPos, 'length': chunkLength});
           if (pendingNum > 0) {
             // trigger sending
-            ele.processPending();
-          };
+            ele.processPending(callback);
+          }
+        }else{
+          callback();
         }
-        callback();
       }, function(err){
         if (err) {
           logger.error('Error while appending jobs to clients', err);
@@ -107,17 +120,18 @@ RadioReceiver.prototype.addClient = function(cli) {
   var receiver = this;
   cli.pendingList = [];
   cli.processPending = function(done) {
-    var c = this;
+    var c = cli;
     if (c && c.pendingList) {
       // send chunks one by one in pendingList
-      async.eachSeries(c.pendingList, function(item, callback){
+      _.each(c.pendingList, function(item, index, list){
         // process data
-        var r_buffer = new Buffer(item['length']);
         // read one chunk from file
-        fs.read(receiver.readStreamFd, r_buffer, 0, item['length'], item['start'], function(err, bytes, buf) {
+        // logger.trace('process chunk:', item['start'], item['length']);
+        fs.read(receiver.readStreamFd, new Buffer(item['length']), 0, 
+          item['length'], item['start'], function(err, bytes, buf) {
           if (err) {
             logger.error('Error while process reading', err);
-            callback(err);
+            // callback(err);
             return;
           }
 
@@ -125,28 +139,18 @@ RadioReceiver.prototype.addClient = function(cli) {
           if (bytes > 0) {
             c.write(buf, function() {
               c.pendingList.shift();
-              if (c.pendingList.length > 0) {
-                c.processPending(callback);
-              }else{
-                callback();
-              }
             });
           }else{
-            logger.warn('Warning, read 0 bytes when fetch file!');
-            callback();
+            logger.warn('Warning, read 0 bytes when fetch file!', 
+              'length: ', item['length'], ', start:', item['start']);
             // FIXME: what if we have no data?!
           }
         });
         // r_buffer = null;
-      }, function(err){
-        if (err) {
-          logger.error('Error while process pending jobs', err);
-        }else{
-          if (_.isFunction(done)) {
-            done();
-          }
-        }
       });
+      if (_.isFunction(done)) {
+        done();
+      }
     };
   };
 
@@ -164,15 +168,16 @@ RadioReceiver.prototype.addClient = function(cli) {
     },
     // slice whole file into pieces
     function(fileSize, callback){
-      var eachChunkSize = 1024<<2; // each chunk contains 4KB data, at most
+      var eachChunkSize = 1024; // each chunk contains 1KB data, at most
       var chunks = Math.floor(fileSize/eachChunkSize);
       for(var i = 0; i<chunks; ++i ){
         cli.pendingList.push({'start': i*eachChunkSize, 'length': eachChunkSize});
       }
 
       if (fileSize%eachChunkSize > 0) {
-        cli.pendingList.push({'start': (i+1)*eachChunkSize, 'length': fileSize%eachChunkSize});
+        cli.pendingList.push({'start': i*eachChunkSize, 'length': fileSize%eachChunkSize});
       };
+      // logger.trace('pendingList after slice file: ', cli.pendingList);
       callback();
     },
     // send them
@@ -189,8 +194,10 @@ RadioReceiver.prototype.addClient = function(cli) {
     receiver.write(data, source);
   }).once('close', function(){
     cli.pendingList = null;
-    var index = receiver.clients.indexOf(cli);
-    receiver.clients.splice(index, 1);
+    if (receiver.clients) {
+      var index = receiver.clients.indexOf(cli);
+      receiver.clients.splice(index, 1);
+    }
   });
 
   return this;
@@ -232,7 +239,14 @@ RadioReceiver.prototype.prune = function() {
       },
       // truncate file
       function(callback){
-        fs.truncate(self.options.filename, 0, callback);
+        fs.truncate(self.options.filename, 0, function(err){
+          if (err) {
+            logger.error('truncate error: ', err);
+            callback(err);
+          } else{
+            callback();
+          }
+        });
       },
       // re-create write stream
       function(callback){
@@ -256,7 +270,19 @@ RadioReceiver.prototype.prune = function() {
           }
         });
       }
-    ]);
+    ],
+    function(err, results){
+      if (err) {
+        logger.error('Error when prune:', err);
+      } else{
+        // logger.trace('prune done.');
+      }
+    });
+  self = null;
+};
+
+RadioReceiver.prototype.removeFile = function() {
+  fs.unlink(this.options.filename);
 };
 
 RadioReceiver.prototype.cleanup = function() {
@@ -377,8 +403,23 @@ Radio.prototype.joinDataGroup = function(client) {
   }
 };
 
+Radio.prototype.removeFile = function() {
+  if (this.dataRadio) {
+    this.dataRadio.removeFile();
+  }
+  if (this.msgRadio) {
+    this.msgRadio.removeFile();
+  }
+};
+
 Radio.prototype.cleanup = function() {
-  radio.options = null;
+  this.options = null;
+  if (this.dataRadio) {
+    this.dataRadio.cleanup();
+  }
+  if (this.msgRadio) {
+    this.msgRadio.cleanup();
+  }
 };
 
 module.exports = Radio;

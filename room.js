@@ -95,10 +95,10 @@ function Room(options) {
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
         room.signed_key = hashed.digest('hex');
-        logger.trace('generated key:', room.signed_key);
+        // logger.trace('generated key:', room.signed_key);
       }else{
         room.signed_key = room.options.key;
-        logger.trace('recovered key:', room.signed_key);
+        // logger.trace('recovered key:', room.signed_key);
       }
       
       callback();
@@ -140,8 +140,8 @@ function Room(options) {
           hash = hash.digest('hex');
           return globalConf['room']['path'] + hash + '.msg';
         } ();
-        callback();
       }
+      callback();
       
     }],
     'create_radio': ['gen_fileNames', function(callback){
@@ -150,7 +150,6 @@ function Room(options) {
         'msgFile': room.msgFile,
         'recovery': room.options.recovery
       });
-      logger.trace('create_radio works!');
       room.radio.once('ready', callback);
     }],
     'init_dataSocket': ['create_radio', function(callback){
@@ -198,7 +197,7 @@ function Room(options) {
         con.once('close', function() {
           if (room.options.emptyclose) {
             logger.debug('On socket exits, currentLoad:', room.currentLoad());
-            if (room.currentLoad() <= 1) { // when exit, still connected on.
+            if (room.currentLoad() < 1) { // when exit, still connected on.
               room.close();
             }
           }
@@ -220,7 +219,7 @@ function Room(options) {
           }));
         }
 
-        room.radio.joinDataGroup(con);
+        room.radio.joinMsgGroup(con);
         
       });
       callback();
@@ -281,7 +280,9 @@ function Room(options) {
               var hash = crypto.createHash('sha1');
               hash.update(r_room.options.name + obj['name'] + r_room.options.salt + (new Date()).getTime(), 'utf8');
               hash = hash.digest('hex');
-              cli['clientid'] = hash;
+              if (cli) {
+                cli['clientid'] = hash;
+              }
               return hash;
             } ()
           }
@@ -339,7 +340,7 @@ function Room(options) {
           r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-            r_room.radio.prune();
+            r_room.radio.dataRadio.prune();
             var ret = {
               response: 'clearall',
               result: true
@@ -430,7 +431,7 @@ function Room(options) {
       room.cmdSocket = new socket.SocketServer({
         autoBroadcast: false
       });
-      // room.cmdSocket.maxConnections = room.options.maxLoad;
+
       room.cmdSocket.on('message', function(client, data) {
         var obj = common.stringToJson(data);
         room.router.message(client, obj);
@@ -442,11 +443,11 @@ function Room(options) {
         room.workingSockets += 1;
         if (room.workingSockets >= 3) {
           room.emit('create', {
-            cmdPort: room.cmdSocket.address().port,
-            maxLoad: room.options.maxLoad,
-            currentLoad: room.currentLoad(),
-            name: room.options.name,
-            key: room.signed_key,
+            'cmdPort': room.cmdSocket.address().port,
+            'maxLoad': room.options.maxLoad,
+            'currentLoad': room.currentLoad(),
+            'name': room.options.name,
+            'key': room.signed_key,
             'private': room.options.password.length > 0
           });
           room.emit('checkout');
@@ -524,29 +525,31 @@ Room.prototype.close = function() {
         'name': self.options.name
       }
     })
-  };
+  }
+
+  
+
   if (self.cmdSocket) {
     self.cmdSocket.close();
-  };
+  }
+
   if (self.dataSocket) {
     self.dataSocket.close();
-  };
+  }
+
   if (self.msgSocket) {
     self.msgSocket.close();
-  };
-  
-  if (!self.options.permanent) {
-    logger.trace('Room file deleted when close, line 606');
-    if (self.dataFile) {
-      fs.unlink(self.dataFile);
-    };
-
-    if (self.dataFile) {
-      fs.unlink(self.msgFile);
-    };   
-    
-    self.emit('destroyed');
   }
+
+  if (self.radio) {
+    if (!self.options.permanent) {
+      self.radio.removeFile();
+    }
+    self.radio.cleanup();
+    self.radio = null;
+  }
+
+  self.emit('destroyed');
   
   return this;
 };
