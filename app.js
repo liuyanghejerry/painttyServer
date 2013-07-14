@@ -92,9 +92,8 @@ if (cluster.isMaster) {
       }
 
       cluster.on('exit', function(worker, code, signal) {
-        logger.error('worker ', worker.process.pid, ' died');
         if(worker.memberId){
-          logger.trace('Worker with memberId', worker.memberId, 'died');
+          logger.error('Worker with memberId', worker.memberId, 'died');
           forkWorker(worker.memberId);
         }
       });
@@ -110,7 +109,7 @@ if (cluster.isMaster) {
 } else {
   var d1 = domain.create();
   var roomManager;
-  // d1.run(function() {
+  d1.run(function() {
     var memberId = 0;
     if (process.env['memberId']) {
       memberId = parseInt(process.env['memberId'], 10);
@@ -137,7 +136,7 @@ if (cluster.isMaster) {
       process.exit();
     });
 
-  // });
+  });
   d1.on('error', function(er1) {
     logger.error('Error with RoomManager:', er1);
     try {
