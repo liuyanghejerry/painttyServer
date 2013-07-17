@@ -113,10 +113,10 @@ RadioReceiver.prototype.write = function(chunk, source) {
     var r = this;
 
     var lPos = r.lastPos;
-    this.lastPos += chunk.length;
+    r.lastPos += chunk.length;
     var chunkLength = chunk.length;
 
-    this.writeStream.write(chunk, function() {
+    r.writeStream.write(chunk, function() {
       async.each(r.clients, function(ele, callback){
         if (ele == source) {
           callback();
@@ -146,6 +146,7 @@ RadioReceiver.prototype.write = function(chunk, source) {
         } 
       });
     }); 
+    
   }else{
     logger.error('RadioReceiver commanded to write without stream attached');
   }
