@@ -9,6 +9,8 @@ var common = require('./common.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 
+var CHUNK_SIZE = 1024; // Bytes
+
 function RadioReceiver(options) {
   events.EventEmitter.call(this, options);
   var self = this;
@@ -83,10 +85,40 @@ function RadioReceiver(options) {
 
 util.inherits(RadioReceiver, events.EventEmitter);
 
+function split_chunk (start, length) {
+  var result_queue = [];
+
+  // do {
+  //   var s_len = CHUNK_SIZE;
+  //   var s_start = start;
+  //   result_queue.push({'start': s_start, 'length': s_len});
+  //   start = start + s_len;
+  //   length -= s_len;
+  // }while(length >= CHUNK_SIZE);
+
+  var chunks = Math.floor(length/CHUNK_SIZE);
+  var c_pos = 0;
+  for(var i = 0; i<chunks; ++i ){
+    result_queue.push({'start': c_pos, 'length': CHUNK_SIZE});
+    c_pos += CHUNK_SIZE;
+  }
+
+  if (length%CHUNK_SIZE > 0) {
+    result_queue.push({'start': c_pos, 'length': length%CHUNK_SIZE});
+  };
+
+  return result_queue;
+}
+
+function push_large_chunk (start, length, queue) {
+  var new_items = split_chunk(start, length);
+  queue = queue.concat(new_items);
+  return queue;
+}
+
 RadioReceiver.prototype.write = function(chunk, source) {
   if(this.writeStream) {
     var r = this;
-    var d_times = 0;
 
     var lPos = r.lastPos;
     this.lastPos += chunk.length;
@@ -95,12 +127,23 @@ RadioReceiver.prototype.write = function(chunk, source) {
     this.writeStream.write(chunk, function() {
       async.each(r.clients, function(ele, callback){
         if (ele != source) {
-          d_times ++;
-          var pendingNum = ele.pendingList.push({'start': lPos, 'length': chunkLength});
-          if (pendingNum > 0) {
-            // trigger sending
-            ele.processPending(callback);
+          if (ele.pendingList.length > 0) {
+            var topItem = ele.pendingList.pop();
+            // try to merge new chunk into old chunk
+            var new_start = topItem['start'] + topItem['length'];
+            var new_length = topItem['length'] + chunkLength;
+            if (new_start == lPos) { // if two chunks are neighbor
+              // concat two chunks and re-split them
+              ele.pendingList = push_large_chunk(topItem['start'], new_length, ele.pendingList);
+            }else{ // or just push those in
+              ele.pendingList.push(topItem); // push the old chunk back
+              ele.pendingList = push_large_chunk(lPos, chunkLength, ele.pendingList); // and new one
+            }
+          }else{
+            ele.pendingList = push_large_chunk(lPos, chunkLength, ele.pendingList);
+            // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
           }
+          callback();
         }else{
           callback();
         }
@@ -168,15 +211,7 @@ RadioReceiver.prototype.addClient = function(cli) {
     },
     // slice whole file into pieces
     function(fileSize, callback){
-      var eachChunkSize = 1024; // each chunk contains 1KB data, at most
-      var chunks = Math.floor(fileSize/eachChunkSize);
-      for(var i = 0; i<chunks; ++i ){
-        cli.pendingList.push({'start': i*eachChunkSize, 'length': eachChunkSize});
-      }
-
-      if (fileSize%eachChunkSize > 0) {
-        cli.pendingList.push({'start': i*eachChunkSize, 'length': fileSize%eachChunkSize});
-      };
+      cli.pendingList = cli.pendingList.concat(split_chunk(0, fileSize));
       // logger.trace('pendingList after slice file: ', cli.pendingList);
       callback();
     },
@@ -190,15 +225,33 @@ RadioReceiver.prototype.addClient = function(cli) {
     }
   });
 
-  cli.on('datapack', function(source, data){
+  function ondatapack(source, data) {
     receiver.write(data, source);
-  }).once('close', function(){
+  }
+
+  function ondrain() {
+    if(cli.processPending) {
+      cli.processPending();
+    }
+  }
+
+  function onclose() {
     cli.pendingList = null;
     if (receiver.clients) {
       var index = receiver.clients.indexOf(cli);
       receiver.clients.splice(index, 1);
     }
-  });
+  }
+
+  function cleanup() {
+    cli.removeListener('datapack', ondatapack);
+    cli.removeListener('drain', ondrain);
+  }
+
+  cli.on('datapack', ondatapack)
+  .on('drain', ondrain)
+  .once('close', onclose)
+  .once('close', cleanup);
 
   return this;
 };
@@ -278,7 +331,7 @@ RadioReceiver.prototype.prune = function() {
         // logger.trace('prune done.');
       }
     });
-  self = null;
+  return this;
 };
 
 RadioReceiver.prototype.removeFile = function() {

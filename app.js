@@ -109,7 +109,7 @@ if (cluster.isMaster) {
 } else {
   var d1 = domain.create();
   var roomManager;
-  d1.run(function() {
+  // d1.run(function() {
     var memberId = 0;
     if (process.env['memberId']) {
       memberId = parseInt(process.env['memberId'], 10);
@@ -136,7 +136,7 @@ if (cluster.isMaster) {
       process.exit();
     });
 
-  });
+  // });
   d1.on('error', function(er1) {
     logger.error('Error with RoomManager:', er1);
     try {
