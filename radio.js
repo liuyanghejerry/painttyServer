@@ -88,14 +88,6 @@ util.inherits(RadioReceiver, events.EventEmitter);
 function split_chunk (start, length) {
   var result_queue = [];
 
-  // do {
-  //   var s_len = CHUNK_SIZE;
-  //   var s_start = start;
-  //   result_queue.push({'start': s_start, 'length': s_len});
-  //   start = start + s_len;
-  //   length -= s_len;
-  // }while(length >= CHUNK_SIZE);
-
   var chunks = Math.floor(length/CHUNK_SIZE);
   var c_pos = 0;
   for(var i = 0; i<chunks; ++i ){
@@ -126,7 +118,10 @@ RadioReceiver.prototype.write = function(chunk, source) {
 
     this.writeStream.write(chunk, function() {
       async.each(r.clients, function(ele, callback){
-        if (ele != source) {
+        if (ele == source) {
+          callback();
+          return;
+        }else{
           if (ele.pendingList.length > 0) {
             var topItem = ele.pendingList.pop();
             // try to merge new chunk into old chunk
@@ -143,8 +138,6 @@ RadioReceiver.prototype.write = function(chunk, source) {
             ele.pendingList = push_large_chunk(lPos, chunkLength, ele.pendingList);
             // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
           }
-          callback();
-        }else{
           callback();
         }
       }, function(err){

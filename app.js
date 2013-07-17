@@ -1,7 +1,7 @@
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 // var numCPUs = 4;
-var heapdump = require('heapdump');
+// var heapdump = require('heapdump');
 var _ = require('underscore');
 var domain = require('domain');
 var toobusy = require('toobusy');
@@ -15,6 +15,8 @@ var logger = common.logger;
 var globalConf = common.globalConf;
 // var express = require('express');
 // var httpServer = express();
+
+var agent = require('webkit-devtools-agent');
 
 if (cluster.isMaster) {
   var localSocket = null;
