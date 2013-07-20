@@ -122,17 +122,17 @@ function appendToPendings(chunk, list) {
   return list;
 }
 
-RadioReceiver.prototype.write = function(chunk, source) {
+RadioReceiver.prototype.write = function(datachunk, source) {
   if(this.writeBufferedFile) {
     var r = this;
 
-    r.writeBufferedFile.append(chunk, function() {
+    r.writeBufferedFile.append(datachunk, function() {
       async.each(r.clients, function(ele, callback){
         if (ele == source) {
           callback();
           return;
         }else{
-          ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, chunk.chunkSize), ele.pendingList);
+          ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, datachunk.length), ele.pendingList);
           // logger.trace('after merge', ele.pendingList);
           callback();
         }
@@ -142,7 +142,7 @@ RadioReceiver.prototype.write = function(chunk, source) {
         } 
       });
     });
-    r.lastPos += chunk.chunkSize;
+    r.lastPos += datachunk.length;
     
   }else{
     logger.error('RadioReceiver commanded to write without stream attached');
