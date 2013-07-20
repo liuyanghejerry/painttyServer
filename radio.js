@@ -6,6 +6,7 @@ var Buffers = require('buffers');
 var _ = require('underscore');
 var async = require('async');
 var common = require('./common.js');
+var BufferedFile = require('./bufferedfile.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -37,42 +38,21 @@ function RadioReceiver(options) {
         callback();
       }
     },
-    'create_writeStream': ['create_file', function(callback){
-      self.writeStream = fs.createWriteStream(self.options.filename, {flags: 'a'});
-      self.writeStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      }).once('open', function() {
-        callback();
+    'open_buffered_file': ['create_file', function(callback){
+      self.writeBufferedFile = new BufferedFile({
+        'fileName': self.options.filename
       });
+      callback();
     }],
-    'open_file_for_read': ['create_file', function(callback){
-      fs.open(self.options.filename, 'a+', function(err, fd){
-        if (err) {
-          logger.error('Error while opening archive file', err);
-          callback(err);
-        }else{
-          self.readStreamFd = fd;
-          callback();
-        }
-      });
-    }],
-    'fecth_size': ['open_file_for_read', function(callback){
+    'fecth_size': ['open_buffered_file', function(callback){
       if (self.options.recovery === true) {
-        fs.fstat(self.readStreamFd, function(err, stats){
-          if (err) {
-            logger.error('Error while getting stats of archive file', err);
-            callback(err);
-          }else{
-            self.lastPos = stats.size;
-            callback();
-          }
-        });
+        self.lastPos = self.writeBufferedFile.wholeSize;
       }else{
         self.lastPos = 0;
         callback();
       }
     }],
-    'ready': ['create_file', 'open_file_for_read', 'fecth_size', function(callback) {
+    'ready': ['create_file', 'fecth_size', function(callback) {
       self.emit('ready');
       callback();
     }]
@@ -89,7 +69,7 @@ function split_chunk (start, length) {
   var result_queue = [];
 
   var chunks = Math.floor(length/CHUNK_SIZE);
-  var c_pos = 0;
+  var c_pos = start;
   for(var i = 0; i<chunks; ++i ){
     result_queue.push({'start': c_pos, 'length': CHUNK_SIZE});
     c_pos += CHUNK_SIZE;
@@ -104,40 +84,44 @@ function split_chunk (start, length) {
 
 function push_large_chunk (start, length, queue) {
   var new_items = split_chunk(start, length);
-  queue = queue.concat(new_items);
-  return queue;
+  var new_queue = queue.concat(new_items);
+  // logger.trace('queue: ', queue, 'new_queue: ', new_queue);
+  return new_queue;
+}
+
+function appendToPendings(pos, chunkLength, list) {
+  // logger.trace('pos', pos, 'chunkLength', chunkLength, 'list', list);
+  
+  if (list.length > 0) {
+    var bottomItem = list.pop();
+    // try to merge new chunk into old chunk
+    var new_length = bottomItem['length'] + chunkLength;
+    if (bottomItem['start'] + bottomItem['length'] == pos) { // if two chunks are neighbor
+      // concat two chunks and re-split them
+      list = push_large_chunk(bottomItem['start'], new_length, list);
+    }else{ // or just push those in
+      list.push(bottomItem); // push the old chunk back
+      list = push_large_chunk(pos, chunkLength, list); // and new one
+    }
+  }else{
+    list = push_large_chunk(pos, chunkLength, list);
+    // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
+  }
+  return list;
 }
 
 RadioReceiver.prototype.write = function(chunk, source) {
-  if(this.writeStream) {
+  if(this.writeBufferedFile) {
     var r = this;
 
-    var lPos = r.lastPos;
-    r.lastPos += chunk.length;
-    var chunkLength = chunk.length;
-
-    r.writeStream.write(chunk, function() {
+    r.writeBufferedFile.append(chunk, function() {
       async.each(r.clients, function(ele, callback){
         if (ele == source) {
           callback();
           return;
         }else{
-          if (ele.pendingList.length > 0) {
-            var topItem = ele.pendingList.pop();
-            // try to merge new chunk into old chunk
-            var new_start = topItem['start'] + topItem['length'];
-            var new_length = topItem['length'] + chunkLength;
-            if (new_start == lPos) { // if two chunks are neighbor
-              // concat two chunks and re-split them
-              ele.pendingList = push_large_chunk(topItem['start'], new_length, ele.pendingList);
-            }else{ // or just push those in
-              ele.pendingList.push(topItem); // push the old chunk back
-              ele.pendingList = push_large_chunk(lPos, chunkLength, ele.pendingList); // and new one
-            }
-          }else{
-            ele.pendingList = push_large_chunk(lPos, chunkLength, ele.pendingList);
-            // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
-          }
+          ele.pendingList = appendToPendings(r.lastPos, chunk.length, ele.pendingList);
+          // logger.trace('after merge', ele.pendingList);
           callback();
         }
       }, function(err){
@@ -145,12 +129,33 @@ RadioReceiver.prototype.write = function(chunk, source) {
           logger.error('Error while appending jobs to clients', err);
         } 
       });
-    }); 
+    });
+    r.lastPos += chunk.length;
     
   }else{
     logger.error('RadioReceiver commanded to write without stream attached');
   }
 };
+
+function fetch_and_send(list, bufferedfile, client, ok) {
+  if (list && list.length > 0) {
+    var item = _.first(list);
+    list.shift();
+    bufferedfile.read(item['start'], item['length'], function(datachunk){
+      if (datachunk.length > 0) {
+        var isIdel = client.write(datachunk);
+        if (ok && _.isFunction(ok)) {
+          ok(isIdel);
+        }
+      }else{
+        logger.warn('Warning, read 0 bytes when fetch file!', 
+          'length: ', item['length'], ', start:', item['start']);
+        ok(false);
+      }
+    });
+  }
+  ok(false);
+}
 
 RadioReceiver.prototype.addClient = function(cli) {
   this.clients.push(cli);
@@ -160,31 +165,22 @@ RadioReceiver.prototype.addClient = function(cli) {
     var c = cli;
     if (c && c.pendingList) {
       // send chunks one by one in pendingList
-      _.each(c.pendingList, function(item, index, list){
-        // process data
-        // read one chunk from file
-        // logger.trace('process chunk:', item['start'], item['length']);
-        fs.read(receiver.readStreamFd, new Buffer(item['length']), 0, 
-          item['length'], item['start'], function(err, bytes, buf) {
-          if (err) {
-            logger.error('Error while process reading', err);
-            // callback(err);
-            return;
-          }
-
-          // send only if we get it
-          if (bytes > 0) {
-            c.write(buf, function() {
-              c.pendingList.shift();
-            });
-          }else{
-            logger.warn('Warning, read 0 bytes when fetch file!', 
-              'length: ', item['length'], ', start:', item['start']);
-            // FIXME: what if we have no data?!
-          }
+      
+      var should_next = true;
+      async.whilst(
+        function() {
+          return should_next;
+        }, function(callback){
+          fetch_and_send(c.pendingList, receiver.writeBufferedFile, c, function(go_on){
+          should_next = go_on;
+          callback();
         });
-        // r_buffer = null;
+      }, function(err){
+        if (err) {
+          logger.error('Error when processPending', err);
+        }
       });
+      
       if (_.isFunction(done)) {
         done();
       }
@@ -195,13 +191,7 @@ RadioReceiver.prototype.addClient = function(cli) {
   async.waterfall([
     // fetch file size
     function(callback){
-      fs.fstat(receiver.readStreamFd, function(err, stat) {
-        if (err) {
-          logger.error('Error while getting stat of file', err);
-          callback(err);
-        };
-        callback(null, stat.size);
-      });
+      callback(null, receiver.writeBufferedFile.wholeSize);
     },
     // slice whole file into pieces
     function(fileSize, callback){
@@ -217,6 +207,9 @@ RadioReceiver.prototype.addClient = function(cli) {
     if (err) {
       logger.error('Error while sending record', err);
     }
+    cli.sendTimer = setInterval(function(){
+      if(cli && cli.processPending) cli.processPending();
+    }, 5000);
   });
 
   function ondatapack(source, data) {
@@ -230,6 +223,8 @@ RadioReceiver.prototype.addClient = function(cli) {
   }
 
   function onclose() {
+    clearInterval(cli.sendTimer);
+    cli.sendTimer = null;
     cli.pendingList = null;
     if (receiver.clients) {
       var index = receiver.clients.indexOf(cli);
@@ -254,75 +249,28 @@ RadioReceiver.prototype.prune = function() {
   var self = this;
   async.series([
       // delete old pending chunks
+      // FIXME: delete old chunks may result in a imcomplete data pack.
       function(callback){
-        async.each(self.clients, function(item){
+        async.each(self.clients, function(item, done){
           item.pendingList = [];
+          done();
         }, callback);
       },
-      // close old write stream
+      // clear file
       function(callback){
-        if (self.writeStream) {
-          self.writeStream.end(function(){
-            self.writeStream = null; 
-            callback();
-          }); 
-        }else{
-          callback();
-        }
+        self.writeBufferedFile.clearAll(callback);
       },
-      // close old read stream
+      // reset pos
       function(callback){
-        if (self.readStreamFd) {
-          fs.close(self.readStreamFd, function(err){
-            if (err) {
-              logger.error('Error when close archive file', err);
-              callback(err);
-            }else{
-              self.readStreamFd = null;
-              callback();
-            }            
-          });
-        }
-      },
-      // truncate file
-      function(callback){
-        fs.truncate(self.options.filename, 0, function(err){
-          if (err) {
-            logger.error('truncate error: ', err);
-            callback(err);
-          } else{
-            callback();
-          }
-        });
-      },
-      // re-create write stream
-      function(callback){
-        self.writeStream = fs.createWriteStream(self.options.filename, {flags: 'a'});
         self.lastPos = 0;
-        self.writeStream.on('error', function(er){
-          logger.error('Error while streaming', er);
-        }).once('open', function() {
-          callback();
-        });
-      },
-      // re-create read stream
-      function(callback){
-        fs.open(self.options.filename, 'a+', function(err, fd){
-          if (err) {
-            logger.error('Error while opening archive file', err);
-            callback(err);
-          }else{
-            self.readStreamFd = fd;
-            callback();
-          }
-        });
+        callback();
       }
     ],
     function(err, results){
       if (err) {
         logger.error('Error when prune:', err);
       } else{
-        // logger.trace('prune done.');
+        self.emit('pruned');
       }
     });
   return this;
@@ -336,19 +284,9 @@ RadioReceiver.prototype.cleanup = function() {
   this.options = null;
   this.clients = null;
   var self = this;
-  if (this.writeStream) {
-    this.writeStream.end();
-    this.writeStream = null;
-  }
-
-  if (this.readStreamFd) {
-    fs.close(this.readStreamFd, function(err){
-      if (err) {
-        logger.error('Error when close archive file', err);
-      }else{
-        self.readStreamFd = null;
-      }            
-    });
+  if (this.writeBufferedFile) {
+    this.writeBufferedFile.cleanup();
+    this.writeBufferedFile = null;
   }
 };
 
