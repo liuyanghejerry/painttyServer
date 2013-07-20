@@ -12,6 +12,11 @@ var globalConf = common.globalConf;
 
 var CHUNK_SIZE = 1024; // Bytes
 
+function RadioChunk(start, length) {
+  this.start = start;
+  this.chunkSize = length;
+}
+
 function RadioReceiver(options) {
   events.EventEmitter.call(this, options);
   var self = this;
@@ -65,46 +70,53 @@ function RadioReceiver(options) {
 
 util.inherits(RadioReceiver, events.EventEmitter);
 
-function split_chunk (start, length) {
+function split_chunk (chunk) {
   var result_queue = [];
 
-  var chunks = Math.floor(length/CHUNK_SIZE);
-  var c_pos = start;
+  var real_chunk_size = CHUNK_SIZE;
+  var chunks = Math.floor(chunk.chunkSize/real_chunk_size);
+  
+  // keep chunks in a reasonable amount
+  while (chunks > 300) {
+    real_chunk_size *= 2;
+    chunks = Math.floor(chunk.chunkSize/real_chunk_size);
+  }
+  var c_pos = chunk.start;
   for(var i = 0; i<chunks; ++i ){
-    result_queue.push({'start': c_pos, 'length': CHUNK_SIZE});
-    c_pos += CHUNK_SIZE;
+    result_queue.push(new RadioChunk(c_pos, real_chunk_size));
+    c_pos += real_chunk_size;
   }
 
-  if (length%CHUNK_SIZE > 0) {
-    result_queue.push({'start': c_pos, 'length': length%CHUNK_SIZE});
+  if (chunk.chunkSize%real_chunk_size > 0) {
+    result_queue.push(new RadioChunk(c_pos, chunk.chunkSize%real_chunk_size));
   };
 
   return result_queue;
 }
 
-function push_large_chunk (start, length, queue) {
-  var new_items = split_chunk(start, length);
+function push_large_chunk (chunk, queue) {
+  var new_items = split_chunk(chunk);
   var new_queue = queue.concat(new_items);
   // logger.trace('queue: ', queue, 'new_queue: ', new_queue);
   return new_queue;
 }
 
-function appendToPendings(pos, chunkLength, list) {
+function appendToPendings(chunk, list) {
   // logger.trace('pos', pos, 'chunkLength', chunkLength, 'list', list);
   
   if (list.length > 0) {
     var bottomItem = list.pop();
     // try to merge new chunk into old chunk
-    var new_length = bottomItem['length'] + chunkLength;
-    if (bottomItem['start'] + bottomItem['length'] == pos) { // if two chunks are neighbor
+    var new_length = bottomItem['chunkSize'] + chunk.chunkSize;
+    if (bottomItem['start'] + bottomItem['chunkSize'] == chunk.start) { // if two chunks are neighbor
       // concat two chunks and re-split them
-      list = push_large_chunk(bottomItem['start'], new_length, list);
+      list = push_large_chunk(new RadioChunk(bottomItem['start'], new_length), list);
     }else{ // or just push those in
       list.push(bottomItem); // push the old chunk back
-      list = push_large_chunk(pos, chunkLength, list); // and new one
+      list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list); // and new one
     }
   }else{
-    list = push_large_chunk(pos, chunkLength, list);
+    list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list);
     // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
   }
   return list;
@@ -120,7 +132,7 @@ RadioReceiver.prototype.write = function(chunk, source) {
           callback();
           return;
         }else{
-          ele.pendingList = appendToPendings(r.lastPos, chunk.length, ele.pendingList);
+          ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, chunk.chunkSize), ele.pendingList);
           // logger.trace('after merge', ele.pendingList);
           callback();
         }
@@ -130,7 +142,7 @@ RadioReceiver.prototype.write = function(chunk, source) {
         } 
       });
     });
-    r.lastPos += chunk.length;
+    r.lastPos += chunk.chunkSize;
     
   }else{
     logger.error('RadioReceiver commanded to write without stream attached');
@@ -141,7 +153,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
   if (list && list.length > 0) {
     var item = _.first(list);
     list.shift();
-    bufferedfile.read(item['start'], item['length'], function(datachunk){
+    bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
       if (datachunk.length > 0) {
         var isIdel = client.write(datachunk);
         if (ok && _.isFunction(ok)) {
@@ -149,7 +161,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
         }
       }else{
         logger.warn('Warning, read 0 bytes when fetch file!', 
-          'length: ', item['length'], ', start:', item['start']);
+          'length: ', item['chunkSize'], ', start:', item['start']);
         ok(false);
       }
     });

@@ -119,12 +119,13 @@ BufferedFile.prototype.append = function (data, fn) {
 
 BufferedFile.prototype.read = function (pos, length, fn) {
   var bf = this;
-  logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+
   if (pos >= bf.fileSize) {
     // all in buffers
     var start = pos - bf.fileSize;
     var bbb = bf.buf.slice(start, start+length);
     if (bbb.length != length) {
+      logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
       logger.trace('wanted length: ', length, 'fetched:', bbb.length, 'all in buffer', bbb.toString('hex'));
     }
     fn(bbb);
@@ -144,11 +145,13 @@ BufferedFile.prototype.read = function (pos, length, fn) {
             var buffer_part = bf.buf.slice(0, buffer_part_length);
             var final_parts = Buffer.concat([file_part, buffer_part]);
             if (bytesRead != file_part_length) {
+              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
               logger.trace('wanted length, pos: ', length, pos, 
                 'buffer part: ', buffer_part_length, 
                 'file part', file_part_length);
             }
             if (buffer_part.length != buffer_part_length) {
+              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
               logger.trace('wanted length, pos: ', length, pos, 
                 'buffer part: ', buffer_part_length, 
                 'file part', file_part_length);
@@ -165,6 +168,7 @@ BufferedFile.prototype.read = function (pos, length, fn) {
         } else {
           if (fn && _.isFunction(fn) ) {
             if (bytesRead != length) {
+              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
               logger.trace('wanted length: ', length, 'all in file\n',
                 'fetched:', bytesRead, buffer.toString('hex'));
             }
