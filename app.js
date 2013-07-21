@@ -16,7 +16,7 @@ var globalConf = common.globalConf;
 // var express = require('express');
 // var httpServer = express();
 
-var agent = require('webkit-devtools-agent');
+// var agent = require('webkit-devtools-agent');
 
 if (cluster.isMaster) {
   var localSocket = null;

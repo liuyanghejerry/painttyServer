@@ -187,8 +187,8 @@ function Room(options) {
             });
           }
         });
-      });
-      callback();
+      }).on('listening', callback);
+      room.dataSocket.listen(0, '::');
     }],
     'init_msgSocket': ['create_radio', function(callback){
       room.msgSocket = new socket.SocketServer();
@@ -221,8 +221,8 @@ function Room(options) {
 
         room.radio.joinMsgGroup(con);
         
-      });
-      callback();
+      }).on('listening', callback);
+      room.msgSocket.listen(0, '::');
     }],
     'install_router': ['init_msgSocket', 'init_dataSocket', function(callback){
       room.router.reg('request', 'login',
@@ -435,49 +435,38 @@ function Room(options) {
       room.cmdSocket.on('message', function(client, data) {
         var obj = common.stringToJson(data);
         room.router.message(client, obj);
-      });
-      callback();
+      }).on('listening', callback);
+      room.cmdSocket.listen(0, '::');
     }],
     'start_socketListener': ['init_cmdSocket', function(callback){
       var tmpF = function() {
-        room.workingSockets += 1;
-        if (room.workingSockets >= 3) {
-          room.emit('create', {
-            'cmdPort': room.cmdSocket.address().port,
-            'maxLoad': room.options.maxLoad,
-            'currentLoad': room.currentLoad(),
-            'name': room.options.name,
-            'key': room.signed_key,
-            'private': room.options.password.length > 0
-          });
-          room.emit('checkout');
+        room.emit('create', {
+          'cmdPort': room.cmdSocket.address().port,
+          'maxLoad': room.options.maxLoad,
+          'currentLoad': room.currentLoad(),
+          'name': room.options.name,
+          'key': room.signed_key,
+          'private': room.options.password.length > 0
+        });
+        room.emit('checkout');
 
-          function uploadCurrentInfo() {
-            if (cluster.isWorker) {
-              cluster.worker.send({
-                'message': 'roominfo',
-                'info':{
-                  'name': room.options.name,
-                  'cmdPort': room.cmdSocket.address().port,
-                  'maxLoad': room.options.maxLoad,
-                  'currentLoad': room.currentLoad(),
-                  'private': room.options.password.length > 0,
-                  'timestamp': (new Date()).getTime()
-                }
-              });
-            };
-          }
-          room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
+        function uploadCurrentInfo() {
+          if (cluster.isWorker) {
+            cluster.worker.send({
+              'message': 'roominfo',
+              'info':{
+                'name': room.options.name,
+                'cmdPort': room.cmdSocket.address().port,
+                'maxLoad': room.options.maxLoad,
+                'currentLoad': room.currentLoad(),
+                'private': room.options.password.length > 0,
+                'timestamp': (new Date()).getTime()
+              }
+            });
+          };
         }
+        room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
       };
-
-      room.dataSocket.on('listening', tmpF);
-      room.cmdSocket.on('listening', tmpF);
-      room.msgSocket.on('listening', tmpF);
-
-      room.cmdSocket.listen(0, '::'); // this will support both ipv6 and ipv4 address
-      room.dataSocket.listen(0, '::');
-      room.msgSocket.listen(0, '::');
 
       callback();
     }]
@@ -486,7 +475,7 @@ function Room(options) {
       logger.error('Error while creating Room: ', er);
       room.options.permanent = false;
       room.close();
-    };
+    }
   });
 
 }
