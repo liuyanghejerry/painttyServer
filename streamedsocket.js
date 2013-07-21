@@ -122,6 +122,7 @@ StreamedSocketProtocol.prototype.cleanup = function() {
   this._client = null;
   this._options.client = null;
   this._options = null;
+  this.removeAllListeners();
 };
 
 
@@ -157,6 +158,9 @@ function SocketServer(options) {
       cli['stream_parser'].cleanup();
       delete cli['stream_parser'];
     }
+    cli.removeAllListeners('datapack');
+    cli.removeAllListeners('message');
+    cli.removeAllListeners('drain');
   }
 
   server.on('connection', function(cli) {
@@ -164,12 +168,12 @@ function SocketServer(options) {
     cli.setNoDelay(true);
     server.clients.push(cli);
 
-    function onclose () {
+    var onclose = function () {
       onClientExit(cli);
       cli.destroy();
     }
 
-    function onerror(err) {
+    var onerror = function (err) {
       logger.error('Error with socket:', err);
     }
 
@@ -178,12 +182,12 @@ function SocketServer(options) {
 
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
 
-    function ondatapack(c, d) {
+    var ondatapack = function (c, d) {
       server.emit('datapack', c, d);
       if(c) c.emit('datapack', c, d);
     }
 
-    function onmessage(c, d) {
+    var onmessage = function (c, d) {
       server.emit('message', c, d);
       if(c) c.emit('message', c, d);
     }

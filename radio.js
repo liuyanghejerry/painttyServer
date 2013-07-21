@@ -11,6 +11,7 @@ var logger = common.logger;
 var globalConf = common.globalConf;
 
 var CHUNK_SIZE = 1024; // Bytes
+var MAX_CHUNKS_IN_QUEUE = 1024; // which means there shuold be 1024 RadioChunk in pending queue
 
 function RadioChunk(start, length) {
   this.start = start;
@@ -77,7 +78,7 @@ function split_chunk (chunk) {
   var chunks = Math.floor(chunk.chunkSize/real_chunk_size);
   
   // keep chunks in a reasonable amount
-  while (chunks > 300) {
+  while (chunks > MAX_CHUNKS_IN_QUEUE) {
     real_chunk_size *= 2;
     chunks = Math.floor(chunk.chunkSize/real_chunk_size);
   }
@@ -118,6 +119,11 @@ function appendToPendings(chunk, list) {
   }else{
     list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list);
     // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
+  }
+
+  if (list.length >= MAX_CHUNKS_IN_QUEUE) {
+    // TODO: add another function to re-split chunks in queue
+    logger.warn('There\'re ', list.length, 'chunks in a single queue!');
   }
   return list;
 }
@@ -162,6 +168,8 @@ function fetch_and_send(list, bufferedfile, client, ok) {
       }else{
         logger.warn('Warning, read 0 bytes when fetch file!', 
           'length: ', item['chunkSize'], ', start:', item['start']);
+        // fetch failed, should schedual another try
+        list.unshift(item);
         ok(false);
       }
     });
@@ -224,19 +232,21 @@ RadioReceiver.prototype.addClient = function(cli) {
     }, 5000);
   });
 
-  function ondatapack(source, data) {
+  var ondatapack = function (source, data) {
     receiver.write(data, source);
   }
 
-  function ondrain() {
+  var ondrain = function () {
     if(cli.processPending) {
       cli.processPending();
     }
   }
 
-  function onclose() {
-    clearInterval(cli.sendTimer);
-    cli.sendTimer = null;
+  var onclose = function () {
+    if (cli.sendTimer) {
+      clearInterval(cli.sendTimer);
+      cli.sendTimer = null;
+    }
     cli.pendingList = null;
     if (receiver.clients) {
       var index = receiver.clients.indexOf(cli);
@@ -244,7 +254,7 @@ RadioReceiver.prototype.addClient = function(cli) {
     }
   }
 
-  function cleanup() {
+  var cleanup = function () {
     cli.removeListener('datapack', ondatapack);
     cli.removeListener('drain', ondrain);
   }
@@ -300,6 +310,7 @@ RadioReceiver.prototype.cleanup = function() {
     this.writeBufferedFile.cleanup();
     this.writeBufferedFile = null;
   }
+  this.removeAllListeners();
 };
 
 function Radio(options) {
@@ -417,6 +428,7 @@ Radio.prototype.cleanup = function() {
   if (this.msgRadio) {
     this.msgRadio.cleanup();
   }
+  this.removeAllListeners();
 };
 
 module.exports = Radio;
