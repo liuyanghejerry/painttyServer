@@ -95,10 +95,8 @@ function Room(options) {
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
         room.signed_key = hashed.digest('hex');
-        // logger.trace('generated key:', room.signed_key);
       }else{
         room.signed_key = room.options.key;
-        // logger.trace('recovered key:', room.signed_key);
       }
       
       callback();
@@ -220,7 +218,6 @@ function Room(options) {
         }
 
         room.radio.joinMsgGroup(con);
-        
       }).on('listening', callback);
       room.msgSocket.listen(0, '::');
     }],
@@ -428,9 +425,7 @@ function Room(options) {
       callback();
     }],
     'init_cmdSocket': ['install_router', function(callback){
-      room.cmdSocket = new socket.SocketServer({
-        autoBroadcast: false
-      });
+      room.cmdSocket = new socket.SocketServer();
 
       room.cmdSocket.on('message', function(client, data) {
         var obj = common.stringToJson(data);
@@ -438,7 +433,7 @@ function Room(options) {
       }).on('listening', callback);
       room.cmdSocket.listen(0, '::');
     }],
-    'start_socketListener': ['init_cmdSocket', function(callback){
+    'checkout_to_managers': ['init_cmdSocket', function(callback){
       var tmpF = function() {
         room.emit('create', {
           'cmdPort': room.cmdSocket.address().port,

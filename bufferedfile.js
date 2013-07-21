@@ -126,7 +126,7 @@ BufferedFile.prototype.read = function (pos, length, fn) {
     var bbb = bf.buf.slice(start, start+length);
     if (bbb.length != length) {
       logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-      logger.trace('length in Buffers: ', bf.length);
+      logger.trace('length in Buffers: ', bf.buf.length);
       logger.trace('wanted length: ', length, 'fetched:', bbb.length, 'all in buffer', bbb.toString('hex'));
     }
     fn(bbb);

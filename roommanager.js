@@ -50,9 +50,7 @@ function RoomManager(options) {
         logger.error('connection error:', er);
         callback(er);
       });
-      db.once('open', function () {
-        callback();
-      });
+      db.once('open', callback);
       mongoose.connect(globalConf['database']['connectionString']);
     },
     'init_router': function(callback) {
