@@ -12,6 +12,7 @@ var globalConf = common.globalConf;
 
 var CHUNK_SIZE = 2048; // Bytes
 var MAX_CHUNKS_IN_QUEUE = 1024; // which means there shuold be 1024 RadioChunk in pending queue
+var SEND_INTERVAL = 1000; // check pending list every 2s to send new items
 
 function RadioChunk(start, length) {
   this.start = start;
@@ -183,7 +184,7 @@ RadioReceiver.prototype.addClient = function(cli) {
   cli.pendingList = [];
   cli.processPending = function(done) {
     var c = cli;
-    if (c && c.pendingList) {
+    if (c && c.pendingList && c.pendingList.length > 0) {
       // send chunks one by one in pendingList
       
       var should_next = true;
@@ -229,7 +230,7 @@ RadioReceiver.prototype.addClient = function(cli) {
     }
     cli.sendTimer = setInterval(function(){
       if(cli && cli.processPending) cli.processPending();
-    }, 5000);
+    }, SEND_INTERVAL);
   });
 
   var ondatapack = function (source, data) {
