@@ -441,9 +441,7 @@ function RoomManager(options) {
 
         function roomInfoRefresh() {
           var now = (new Date()).getTime();
-          // logger.debug('roomInfo refreshed');
           _.each(self.roomInfos, function(ele, ind, list) {
-            // logger.debug(ele['name'], ':', ele['timestamp']);
             if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
               if(list[ele['name']]){
                 logger.warn(ele['name'], 'is timeout and deleted.');
@@ -480,8 +478,7 @@ function RoomManager(options) {
               'recovery': true
             });
 
-            n_room.on('create', function(info) {
-              logger.log('Room recovered from db: ', element.name);
+            n_room.once('create', function(info) {
               self.roomObjs[info['name']] = n_room;
               var infoBlock = {
                 cmdPort: info['cmdPort'],
@@ -499,7 +496,7 @@ function RoomManager(options) {
                 });
               };
               n_room.start();
-            }).on('close', function() {
+            }).once('close', function() {
               delete self.roomObjs[n_room.options.name];
               delete self.roomInfos[n_room.options.name];
             }).on('checkout', function() {
@@ -511,7 +508,7 @@ function RoomManager(options) {
                     logger.error(err);
                   };
                 });
-            }).on('destroyed', function() {
+            }).once('destroyed', function() {
               RoomModel.remove({ 'name': n_room.options.name }, function (err) {
                 if (err) {
                   logger.error('Error when removing room from db:', err);
@@ -524,15 +521,13 @@ function RoomManager(options) {
           callback();
         }
       });
-    }],
-    'emit_ready': ['recover_rooms', function(callback) {
-      self.emit('ready');
-      callback();
     }]
-  }, function(er, re){
+  }, function(er){
     if (er) {
       logger.error('Error while creating RoomManager: ', er);
-    };
+    }else{
+      process.nextTick(function(){self.emit('ready');});
+    }
   });
 
   // self.regSocket = new net.Socket();

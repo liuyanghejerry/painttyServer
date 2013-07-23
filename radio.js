@@ -56,17 +56,15 @@ function RadioReceiver(options) {
         self.lastPos = self.writeBufferedFile.wholeSize;
       }else{
         self.lastPos = 0;
-        callback();
       }
-    }],
-    'ready': ['create_file', 'fecth_size', function(callback) {
-      self.emit('ready');
       callback();
     }]
   }, function(err) {
     if (err) {
       logger.error('Error while creating RadioReceiver: ', err);
-    }    
+    }else{
+      process.nextTick(function(){self.emit('ready');});
+    }
   });
 }
 
@@ -216,8 +214,7 @@ RadioReceiver.prototype.addClient = function(cli) {
     },
     // slice whole file into pieces
     function(fileSize, callback){
-      cli.pendingList = cli.pendingList.concat(split_chunk(0, fileSize));
-      // logger.trace('pendingList after slice file: ', cli.pendingList);
+      cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(0, fileSize)));
       callback();
     },
     // send them
@@ -351,11 +348,7 @@ function Radio(options) {
       radio.msgRadio.on('error', function(er){
         logger.error('Error while running radio', er);
       }).once('ready', callback);
-    },
-    'ready': ['create_dataRadio', 'create_msgRadio', function(callback) {
-      radio.emit('ready');
-      callback();
-    }]
+    }
   }, function(err) {
     if (err) {
       logger.error('Error while creating Radio: ', err);
@@ -365,6 +358,8 @@ function Radio(options) {
       if (radio.dataRadio) {
         radio.dataRadio.cleanup();
       };
+    }else{
+      process.nextTick(function(){radio.emit('ready');});
     }
   });
 

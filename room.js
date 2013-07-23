@@ -87,10 +87,12 @@ function Room(options) {
           room.options.salt = data;
           callback();
         });
+      }else{
+        callback();
       }
     },
     'gen_signedkey': ['load_salt', function(callback) {
-      if (room.options.recovery !== true) {
+      if (room.options.recovery != true) {
         var hash_source = room.options.name + room.options.salt;
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
@@ -194,7 +196,6 @@ function Room(options) {
       room.msgSocket.on('connection', function(con) {
         con.once('close', function() {
           if (room.options.emptyclose) {
-            logger.debug('On socket exits, currentLoad:', room.currentLoad());
             if (room.currentLoad() < 1) { // when exit, still connected on.
               room.close();
             }
@@ -432,8 +433,13 @@ function Room(options) {
         room.router.message(client, obj);
       }).on('listening', callback);
       room.cmdSocket.listen(0, '::');
-    }],
-    'checkout_to_managers': ['init_cmdSocket', function(callback){
+    }]
+  }, function(er){
+    if (er) {
+      logger.error('Error while creating Room: ', er);
+      room.options.permanent = false;
+      room.close();
+    }else{
       var tmpF = function() {
         room.emit('create', {
           'cmdPort': room.cmdSocket.address().port,
@@ -462,14 +468,7 @@ function Room(options) {
         }
         room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
       };
-
-      callback();
-    }]
-  }, function(er, re){
-    if (er) {
-      logger.error('Error while creating Room: ', er);
-      room.options.permanent = false;
-      room.close();
+      process.nextTick(tmpF);
     }
   });
 
@@ -500,18 +499,18 @@ Room.prototype.close = function() {
   if (self.checkoutTimer) {
     clearInterval(self.checkoutTimer);
   };
-  
-  self.emit('close');
-  if (cluster.isWorker) {
-    cluster.worker.send({
-      'message': 'roomclose',
-      'info':{
-        'name': self.options.name
-      }
-    })
-  }
 
-  
+  process.nextTick(function(){
+    self.emit('close');
+    if (cluster.isWorker) {
+      cluster.worker.send({
+        'message': 'roomclose',
+        'info':{
+          'name': self.options.name
+        }
+      })
+    }
+  });
 
   if (self.cmdSocket) {
     self.cmdSocket.close();
@@ -533,8 +532,10 @@ Room.prototype.close = function() {
     self.radio = null;
   }
 
-  self.emit('destroyed');
-  
+  if (!self.options.permanent) {
+    self.emit('destroyed');
+  }
+
   return this;
 };
 

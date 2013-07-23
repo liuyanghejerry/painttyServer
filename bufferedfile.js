@@ -71,12 +71,13 @@ function BufferedFile(options) {
       }
 
       bf.timer = setInterval(cycledWrite, bf.op.writeCycle, bf);
-      bf.emit('ready');
       callback();
     }]
   }, function(err){
     if (err) {
       logger.error('Error while creating BufferedFile: ', err);
+    }else{
+      process.nextTick(function(){bf.emit('ready');});
     }
   });
 }
