@@ -1,7 +1,7 @@
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
 // var numCPUs = 4;
-// var heapdump = require('heapdump');
+var heapdump = require('heapdump');
 var _ = require('underscore');
 var domain = require('domain');
 var toobusy = require('toobusy');

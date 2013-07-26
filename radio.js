@@ -49,7 +49,7 @@ function RadioReceiver(options) {
       self.writeBufferedFile = new BufferedFile({
         'fileName': self.options.filename
       });
-      callback();
+      self.writeBufferedFile.once('ready', callback);
     }],
     'fecth_size': ['open_buffered_file', function(callback){
       if (self.options.recovery === true) {
