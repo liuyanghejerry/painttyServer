@@ -31,8 +31,8 @@ function BufferedFile(options) {
   
   var defaultOptions = {
     fileName: 'tmp.tmp',
-    writeCycle: 10*1000, // in milliseconds
-    bufferSize: 1024*1024 // in byte
+    writeCycle: 60*1000, // in milliseconds
+    bufferSize: 1024*1024 // in bytes
   };
   
   if(_.isUndefined(options)) {
@@ -43,7 +43,6 @@ function BufferedFile(options) {
   this.op = _.defaults(options, defaultOptions);
   
   bf.buf = new Buffers();
-  // bf.writtenSize = 0;
   bf.fileSize = 0;
   bf.wholeSize = 0;
   bf.fd = null;
@@ -119,17 +118,18 @@ BufferedFile.prototype.append = function (data, fn) {
 };
 
 BufferedFile.prototype.read = function (pos, length, fn) {
+  // no callback, no work
+  if (!_.isFunction(fn)) {
+    return;
+  }
+
   var bf = this;
 
   if (pos >= bf.fileSize) {
     // all in buffers
     var start = pos - bf.fileSize;
+    // FIXME: slice may fail, even there's enough data
     var bbb = bf.buf.slice(start, start+length);
-    if (bbb.length != length) {
-      logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-      logger.trace('length in Buffers: ', bf.buf.length);
-      logger.trace('wanted length: ', length, 'fetched:', bbb.length, 'all in buffer', bbb.toString('hex'));
-    }
     fn(bbb);
   } else {
     if (pos+length > bf.fileSize) {
@@ -143,23 +143,21 @@ BufferedFile.prototype.read = function (pos, length, fn) {
         if (err) {
           logger.error('Error when read file', err);
         } else {
-          if (fn && _.isFunction(fn) ) {
-            var buffer_part = bf.buf.slice(0, buffer_part_length);
-            var final_parts = Buffer.concat([file_part, buffer_part]);
-            if (bytesRead != file_part_length) {
-              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-              logger.trace('wanted length, pos: ', length, pos, 
-                'buffer part: ', buffer_part_length, 
-                'file part', file_part_length);
-            }
-            if (buffer_part.length != buffer_part_length) {
-              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-              logger.trace('wanted length, pos: ', length, pos, 
-                'buffer part: ', buffer_part_length, 
-                'file part', file_part_length);
-            }
-            fn(final_parts);
+          var buffer_part = bf.buf.slice(0, buffer_part_length);
+          if (bytesRead != file_part_length) {
+            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            logger.trace('wanted length, pos: ', length, pos, 
+              'buffer part: ', buffer_part_length, 
+              'file part', file_part_length);
           }
+          if (buffer_part.length != buffer_part_length) {
+            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            logger.trace('wanted length, pos: ', length, pos, 
+              'buffer part: ', buffer_part_length, 
+              'file part', file_part_length);
+          }
+          var final_parts = Buffer.concat([file_part, buffer_part]);
+          fn(final_parts);
         }
       });
     }else{
@@ -168,14 +166,12 @@ BufferedFile.prototype.read = function (pos, length, fn) {
         if (err) {
           logger.error('Error when read file', err);
         } else {
-          if (fn && _.isFunction(fn) ) {
-            if (bytesRead != length) {
-              logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-              logger.trace('wanted length: ', length, 'all in file\n',
-                'fetched:', bytesRead, buffer.toString('hex'));
-            }
-            fn(buffer);
+          if (bytesRead != length) {
+            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            logger.trace('wanted length: ', length, 'all in file\n',
+              'fetched:', bytesRead, buffer.toString('hex'));
           }
+          fn(buffer);
         }
       });
     }

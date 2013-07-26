@@ -102,7 +102,6 @@ function push_large_chunk (chunk, queue) {
 }
 
 function appendToPendings(chunk, list) {
-  // logger.trace('pos', pos, 'chunkLength', chunkLength, 'list', list);
   
   if (list.length > 0) {
     var bottomItem = list.pop();
@@ -135,10 +134,8 @@ RadioReceiver.prototype.write = function(datachunk, source) {
       async.each(r.clients, function(ele, callback){
         if (ele == source) {
           callback();
-          return;
         }else{
           ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, datachunk.length), ele.pendingList);
-          // logger.trace('after merge', ele.pendingList);
           callback();
         }
       }, function(err){
@@ -155,18 +152,17 @@ RadioReceiver.prototype.write = function(datachunk, source) {
 };
 
 function fetch_and_send(list, bufferedfile, client, ok) {
-  if (list && list.length > 0) {
+  if (list && list.length > 0 && ok && _.isFunction(ok)) {
     var item = _.first(list);
     list.shift();
+
     bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
-      if (datachunk.length > 0) {
-        var isIdel = client.write(datachunk);
-        if (ok && _.isFunction(ok)) {
+      if (datachunk.length == item['chunkSize']) {
+        var isIdel = client.write(datachunk, function(){
+          // logger.debug(datachunk);
           ok(isIdel);
-        }
+        });
       }else{
-        logger.warn('Warning, read 0 bytes when fetch file!', 
-          'length: ', item['chunkSize'], ', start:', item['start']);
         // fetch failed, should schedual another try
         list.unshift(item);
         ok(false);
@@ -203,7 +199,11 @@ RadioReceiver.prototype.addClient = function(cli) {
       if (_.isFunction(done)) {
         done();
       }
-    };
+    }else{
+      if (done && _.isFunction(done)) {
+        done();
+      }
+    }
   };
 
   // send record when join
@@ -220,14 +220,22 @@ RadioReceiver.prototype.addClient = function(cli) {
     // send them
     function(callback) {
       cli.processPending(callback);
+    },
+    // set timer
+    function(callback) {
+      cli.sendTimer = setInterval(function(){
+        if(cli) {
+          cli.processPending();
+        }else{
+          logger.warn('timer still running after client destroyed!');
+        }
+      }, SEND_INTERVAL);
+      callback();
     }
   ], function(err, result){
     if (err) {
       logger.error('Error while sending record', err);
     }
-    cli.sendTimer = setInterval(function(){
-      if(cli && cli.processPending) cli.processPending();
-    }, SEND_INTERVAL);
   });
 
   var ondatapack = function (source, data) {
