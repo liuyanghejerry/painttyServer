@@ -26,9 +26,7 @@
   },
   "dependencies": {
     "async": "~0.2.9",
-    "buffered-writer": "~0.2.3",
     "buffers": "~0.1.1",
-    "express": "~3.2.6",
     "heapdump": "~0.2.0",
     "net-cluster": "~0.0.2",
     "nodeunit": "~0.8.0",
