@@ -63,9 +63,7 @@ if (cluster.isMaster) {
         cli.sendData(cli, new Buffer(jsString));
       });
 
-      localSocket = new socket.SocketServer({
-        autoBroadcast: false
-      });
+      localSocket = new socket.SocketServer();
 
       localSocket.on('message', function(client, data) {
         var obj = common.stringToJson(data);
