@@ -513,15 +513,31 @@ Room.prototype.close = function() {
   });
 
   if (self.cmdSocket) {
-    self.cmdSocket.close();
+    try {
+      self.cmdSocket.close();
+    } catch (e) {
+      logger.error('Cannot close cmdSocket:', e);
+    }
+    self.cmdSocket = null;
+    
   }
 
   if (self.dataSocket) {
-    self.dataSocket.close();
+    try {
+      self.dataSocket.close();
+    } catch (e) {
+      logger.error('Cannot close dataSocket:', e);
+    }
+    self.dataSocket = null;
   }
 
   if (self.msgSocket) {
-    self.msgSocket.close();
+    try {
+      self.msgSocket.close();
+    } catch (e) {
+      logger.error('Cannot close msgSocket:', e);
+    }
+    self.msgSocket = null;
   }
 
   if (self.radio) {
@@ -533,9 +549,11 @@ Room.prototype.close = function() {
   }
 
   if (!self.options.permanent) {
-    self.emit('destroyed');
+    process.nextTick(function(){
+      self.emit('destroyed');
+    });
   }
-
+  
   return this;
 };
 

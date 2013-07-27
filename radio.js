@@ -10,9 +10,9 @@ var BufferedFile = require('./bufferedfile.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 
-var CHUNK_SIZE = 1024*200; // Bytes
-var MAX_CHUNKS_IN_QUEUE = 1024; // which means there shuold be 1024 RadioChunk in pending queue
-var SEND_INTERVAL = 1000; // check pending list every 2s to send new items
+var CHUNK_SIZE = 1024*400; // Bytes
+var MAX_CHUNKS_IN_QUEUE = 2048; // which means there shuold be 2048 RadioChunk instances in pending queue at most
+var SEND_INTERVAL = 800; // check pending list every 800ms to send new items
 
 function RadioChunk(start, length) {
   this.start = start;

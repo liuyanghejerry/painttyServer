@@ -495,6 +495,7 @@ function RoomManager(options) {
                   'info': infoBlock
                 });
               };
+              infoBlock = null;
               n_room.start();
             }).once('close', function() {
               delete self.roomObjs[n_room.options.name];
