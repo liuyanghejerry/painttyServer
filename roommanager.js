@@ -50,9 +50,7 @@ function RoomManager(options) {
         logger.error('connection error:', er);
         callback(er);
       });
-      db.once('open', function () {
-        callback();
-      });
+      db.once('open', callback);
       mongoose.connect(globalConf['database']['connectionString']);
     },
     'init_router': function(callback) {
@@ -414,9 +412,7 @@ function RoomManager(options) {
     },
     'start_server': ['init_router', 'init_db', function(callback) {
 
-      self.pubServer = new socket.SocketServer({
-        autoBroadcast: false
-      });
+      self.pubServer = new socket.SocketServer();
 
       self.pubServer.on('listening', function() {
         self._ispubServerConnected = true;
@@ -437,17 +433,15 @@ function RoomManager(options) {
           }else if (msg['message'] == 'roomclose') {
             if (self.roomInfos[msg['info']['name']]) {
               delete self.roomInfos[msg['info']['name']];
-            };
-          };
+            }
+          }else if(msg['message'] == 'broadcast') {
+            self.localcast(msg['content']);
+          }
         });
 
         function roomInfoRefresh() {
           var now = (new Date()).getTime();
           _.each(self.roomInfos, function(ele, ind, list) {
-            if (!ele || ele.name) {
-              logger.warn('invalid room info obj found');
-              return;
-            };
             if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
               if(list[ele['name']]){
                 logger.warn(ele['name'], 'is timeout and deleted.');
@@ -455,7 +449,6 @@ function RoomManager(options) {
               } 
             }
           });
-          // self.roomInfos = _.filter(self.roomInfos, function(obj){ return !_.isString(obj.name); });
         }
 
         self.roomInfoRefreshTimer = setInterval(roomInfoRefresh, self.op.roomInfoRefreshCycle);
@@ -485,8 +478,7 @@ function RoomManager(options) {
               'recovery': true
             });
 
-            n_room.on('create', function(info) {
-              logger.log('Room recovered from db: ', element.name);
+            n_room.once('create', function(info) {
               self.roomObjs[info['name']] = n_room;
               var infoBlock = {
                 cmdPort: info['cmdPort'],
@@ -503,8 +495,9 @@ function RoomManager(options) {
                   'info': infoBlock
                 });
               };
+              infoBlock = null;
               n_room.start();
-            }).on('close', function() {
+            }).once('close', function() {
               delete self.roomObjs[n_room.options.name];
               delete self.roomInfos[n_room.options.name];
             }).on('checkout', function() {
@@ -516,7 +509,7 @@ function RoomManager(options) {
                     logger.error(err);
                   };
                 });
-            }).on('destroyed', function() {
+            }).once('destroyed', function() {
               RoomModel.remove({ 'name': n_room.options.name }, function (err) {
                 if (err) {
                   logger.error('Error when removing room from db:', err);
@@ -529,15 +522,13 @@ function RoomManager(options) {
           callback();
         }
       });
-    }],
-    'emit_ready': ['recover_rooms', function(callback) {
-      self.emit('ready');
-      callback();
     }]
-  }, function(er, re){
+  }, function(er){
     if (er) {
       logger.error('Error while creating RoomManager: ', er);
-    };
+    }else{
+      process.nextTick(function(){self.emit('ready');});
+    }
   });
 
   // self.regSocket = new net.Socket();
@@ -571,22 +562,12 @@ RoomManager.prototype.start = function() {
 
 RoomManager.prototype.stop = function() {
   var self = this;
-  if (cluster.isWorker) {
-    cluster.worker.removeAllListeners();
-    cluster.worker.disconnect();
-  };
-  
   clearInterval(self.roomInfoRefreshTimer);
   _.each(self.roomObjs,
   function(item) {
-    if (item.close) {
-      item.close();
-    };
+    item.close();
   });
-  self.removeAllListeners();
-  delete self.roomObjs;
   db.close();
-  delete self.options;
   return this;
 };
 
@@ -594,9 +575,7 @@ RoomManager.prototype.localcast = function(msg) {
   var self = this;
   _.each(self.roomObjs,
   function(item) {
-    if (item.bradcastMessage) {
-      item.bradcastMessage(msg);
-    }
+    item.bradcastMessage(msg);
   });
   return this;
 };

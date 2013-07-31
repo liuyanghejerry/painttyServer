@@ -10,6 +10,7 @@ var toobusy = require('toobusy');
 var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
+var Radio = require('./radio.js');
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
@@ -86,18 +87,18 @@ function Room(options) {
           room.options.salt = data;
           callback();
         });
+      }else{
+        callback();
       }
     },
     'gen_signedkey': ['load_salt', function(callback) {
-      if (room.options.recovery !== true) {
+      if (room.options.recovery != true) {
         var hash_source = room.options.name + room.options.salt;
         var hashed = crypto.createHash('sha1');
         hashed.update(hash_source, 'utf8');
         room.signed_key = hashed.digest('hex');
-        logger.trace('generated key:', room.signed_key);
       }else{
         room.signed_key = room.options.key;
-        logger.trace('recovered key:', room.signed_key);
       }
       
       callback();
@@ -125,16 +126,6 @@ function Room(options) {
       if (room.options.recovery === true) {
         room.dataFile = room.options.dataFile;
         room.msgFile = room.options.msgFile;
-        room.msgFileSize = 0; // not really used, currently
-        fs.stat(room.dataFile, function(err, stats) {
-          if (err) {
-            logger.error('Cannot read stat of ', room.dataFile, ' during recovery!');
-            callback(err);
-          }else{
-            room.dataFileSize = stats.size;
-            callback();
-          }
-        });
       }else{
         room.dataFile = function() {
           var hash = crypto.createHash('sha1');
@@ -149,88 +140,28 @@ function Room(options) {
           hash = hash.digest('hex');
           return globalConf['room']['path'] + hash + '.msg';
         } ();
-        room.dataFileSize = 0;
-        room.msgFileSize = 0; // not really used, currently
-        callback();
       }
+      callback();
       
     }],
-    'create_dataFile': ['gen_fileNames', function(callback){
-      if (room.options.recovery !== true) {
-        fs.truncate(room.dataFile, 0, callback);
-      }else{
-        callback();
-      }
-    }],
-    'create_msgFile': ['gen_fileNames', function(callback){
-      if (room.options.recovery !== true) {
-        fs.truncate(room.msgFile, 0, callback);
-      }else{
-        callback();
-      }
-    }],
-    'make_dataStream': ['create_dataFile', function(callback){
-      room.dataFile_writeStream = fs.createWriteStream(room.dataFile, {flags: 'a'});
-      room.dataFile_writeStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      }).on('open', function() {
-        callback();
+    'create_radio': ['gen_fileNames', function(callback){
+      room.radio = new Radio({
+        'dataFile': room.dataFile,
+        'msgFile': room.msgFile,
+        'recovery': room.options.recovery
       });
+      room.radio.once('ready', callback);
     }],
-    'make_msgStream': ['create_msgFile', function(callback){
-      room.msgFile_writeStream = fs.createWriteStream(room.msgFile, {flags: 'a'});
-      room.msgFile_writeStream.on('error', function(er){
-        logger.error('Error while streaming', er);
-      }).on('open', function() {
-        callback();
-      });
-    }],
-    'init_dataSocket': ['make_dataStream', function(callback){
+    'init_dataSocket': ['create_radio', function(callback){
       room.dataSocket = new socket.SocketServer();
       room.dataSocket.maxConnections = room.options.maxLoad;
-      room.dataSocket.on('datapack',
-      function(cli, dbuf) {
-        room.dataFile_writeStream.write(dbuf);
-        room.dataFileSize += dbuf.length;
-      }).on('connection',
+      room.dataSocket.on('connection',
       function(con) {
-        var r_stream;
         async.auto({
-          'create_stream': function(callback){
-            r_stream = fs.createReadStream(room.dataFile);
-            r_stream.on('error', function(er){
-              logger.error('Error while streaming', er);
-            }).on('end', function(){
-              con.inDataHistory = false;
-              r_stream.unpipe();
-              con.emit('historydone');
-            });
+          'join_radio': function(callback){
+            room.radio.joinDataGroup(con);
             callback();
           },
-          'wait_flush': ['create_stream', function(callback) {
-            var tmp_size = room.dataFileSize; // record so that it won't keep growing
-            function doWait() {
-              fs.stat(room.dataFile, function(err, stat) {
-                if (err) {
-                  logger.error('Error while getting stat of dataFile', err);
-                  callback(err);
-                };
-                if (stat.size >= tmp_size) { // don't need flush
-                  callback();
-                }else{ //still need to wait
-                  setTimeout(doWait, 100);
-                }
-              });
-            }
-            doWait();
-          }],
-          'start_pipe': ['wait_flush', function(callback){
-            con.inDataHistory = true;
-            if (!r_stream) {
-              logger.trace('client is missing, line 226');
-            };
-            r_stream.pipe(con, { end: false });
-          }],
           'send_to_clusters': function(callback){
             if (cluster.isWorker) {
               cluster.worker.send({
@@ -244,14 +175,8 @@ function Room(options) {
             callback();
           }
         });
-      });
-      callback();
-    }],
-    'init_msgSocket': ['make_msgStream', function(callback){
-      room.msgSocket = new socket.SocketServer();
-      room.msgSocket.maxConnections = room.options.maxLoad;
-      room.msgSocket.on('connection', function(con) {
-        con.on('end', function() {
+
+        con.once('close', function() {
           if (cluster.isWorker) {
             cluster.worker.send({
               'message': 'loadchange',
@@ -260,10 +185,18 @@ function Room(options) {
                 'currentLoad': room.currentLoad()
               }
             });
-          };
+          }
+        });
+      }).on('listening', callback);
+      room.dataSocket.listen(0, '::');
+    }],
+    'init_msgSocket': ['create_radio', function(callback){
+      room.msgSocket = new socket.SocketServer();
+      room.msgSocket.maxConnections = room.options.maxLoad;
+      room.msgSocket.on('connection', function(con) {
+        con.once('close', function() {
           if (room.options.emptyclose) {
-            logger.debug('On socket exits, currentLoad:', room.currentLoad());
-            if (room.currentLoad() <= 1) { // when exit, still connected on.
+            if (room.currentLoad() < 1) { // when exit, still connected on.
               room.close();
             }
           }
@@ -284,25 +217,10 @@ function Room(options) {
             content: room.options.welcomemsg + '\n'
           }));
         }
-        var r_stream = fs.createReadStream(room.msgFile);
-        r_stream.on('error', function(er){
-          logger.error('Error while streaming', er);
-        }).on('end', function() {
-          con.inMsgHistory = false;
-          r_stream.unpipe();
-          con.emit('historydone');
-        });
-        if (!r_stream) {
-          logger.trace('client is missing, line 295');
-        };
-        r_stream.pipe(con, { end: false });
-        con.inMsgHistory = true;
-        
-      }).on('datapack',
-      function(cli, dbuf) {
-        room.msgFile_writeStream.write(dbuf);
-      });
-      callback();
+
+        room.radio.joinMsgGroup(con);
+      }).on('listening', callback);
+      room.msgSocket.listen(0, '::');
     }],
     'install_router': ['init_msgSocket', 'init_dataSocket', function(callback){
       room.router.reg('request', 'login',
@@ -352,7 +270,7 @@ function Room(options) {
           response: 'login',
           result: true,
           info: {
-            historysize: r_room.dataFileSize,
+            historysize: r_room.radio.dataLength(),
             dataport: r_room.ports().dataPort,
             msgport: r_room.ports().msgPort,
             size: r_room.options.canvasSize,
@@ -360,7 +278,9 @@ function Room(options) {
               var hash = crypto.createHash('sha1');
               hash.update(r_room.options.name + obj['name'] + r_room.options.salt + (new Date()).getTime(), 'utf8');
               hash = hash.digest('hex');
-              cli['clientid'] = hash;
+              if (cli) {
+                cli['clientid'] = hash;
+              }
               return hash;
             } ()
           }
@@ -417,30 +337,19 @@ function Room(options) {
           var jsString = common.jsonToString(ret);
           r_room.cmdSocket.sendData(cli, new Buffer(jsString));
         } else {
-          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {      
-            fs.truncate(r_room.dataFile, 0, function(err){
-              if(err) {
-                  logger.error(err);
-                  return;
-              }
-              r_room.dataFileSize = 0;
-              room.dataFile_writeStream = fs.createWriteStream(room.dataFile);
-              room.dataFile_writeStream.on('error', function(er){
-                logger.error('Error while streaming', er);
-              });
-
-              var ret = {
-                response: 'clearall',
-                result: true
-              };
-              var jsString = common.jsonToString(ret);
-              r_room.cmdSocket.sendData(cli, new Buffer(jsString));
-              var ret_all = {
-                action: 'clearall',
-              };
-              jsString = common.jsonToString(ret_all);
-              r_room.cmdSocket.broadcastData(new Buffer(jsString));
-            });
+          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
+            r_room.radio.dataRadio.prune();
+            var ret = {
+              response: 'clearall',
+              result: true
+            };
+            var jsString = common.jsonToString(ret);
+            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            var ret_all = {
+              action: 'clearall',
+            };
+            jsString = common.jsonToString(ret_all);
+            r_room.cmdSocket.broadcastData(new Buffer(jsString));
           } else {
             var ret = {
               response: 'clearall',
@@ -517,65 +426,50 @@ function Room(options) {
       callback();
     }],
     'init_cmdSocket': ['install_router', function(callback){
-      room.cmdSocket = new socket.SocketServer({
-        autoBroadcast: false
-      });
-      // room.cmdSocket.maxConnections = room.options.maxLoad;
+      room.cmdSocket = new socket.SocketServer();
+
       room.cmdSocket.on('message', function(client, data) {
         var obj = common.stringToJson(data);
         room.router.message(client, obj);
-      });
-      callback();
-    }],
-    'start_socketListener': ['init_cmdSocket', function(callback){
-      var tmpF = function() {
-        room.workingSockets += 1;
-        if (room.workingSockets >= 3) {
-          room.emit('create', {
-            cmdPort: room.cmdSocket.address().port,
-            maxLoad: room.options.maxLoad,
-            currentLoad: room.currentLoad(),
-            name: room.options.name,
-            key: room.signed_key,
-            'private': room.options.password.length > 0
-          });
-          room.emit('checkout');
-
-          function uploadCurrentInfo() {
-            if (cluster.isWorker) {
-              cluster.worker.send({
-                'message': 'roominfo',
-                'info':{
-                  'name': room.options.name,
-                  'cmdPort': room.cmdSocket.address().port,
-                  'maxLoad': room.options.maxLoad,
-                  'currentLoad': room.currentLoad(),
-                  'private': room.options.password.length > 0,
-                  'timestamp': (new Date()).getTime()
-                }
-              });
-            };
-          }
-          room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
-        }
-      };
-
-      room.dataSocket.on('listening', tmpF);
-      room.cmdSocket.on('listening', tmpF);
-      room.msgSocket.on('listening', tmpF);
-
-      room.cmdSocket.listen(0, '::'); // this will support both ipv6 and ipv4 address
-      room.dataSocket.listen(0, '::');
-      room.msgSocket.listen(0, '::');
-
-      callback();
+      }).on('listening', callback);
+      room.cmdSocket.listen(0, '::');
     }]
-  }, function(er, re){
+  }, function(er){
     if (er) {
       logger.error('Error while creating Room: ', er);
       room.options.permanent = false;
       room.close();
-    };
+    }else{
+      var tmpF = function() {
+        room.emit('create', {
+          'cmdPort': room.cmdSocket.address().port,
+          'maxLoad': room.options.maxLoad,
+          'currentLoad': room.currentLoad(),
+          'name': room.options.name,
+          'key': room.signed_key,
+          'private': room.options.password.length > 0
+        });
+        room.emit('checkout');
+
+        function uploadCurrentInfo() {
+          if (cluster.isWorker) {
+            cluster.worker.send({
+              'message': 'roominfo',
+              'info':{
+                'name': room.options.name,
+                'cmdPort': room.cmdSocket.address().port,
+                'maxLoad': room.options.maxLoad,
+                'currentLoad': room.currentLoad(),
+                'private': room.options.password.length > 0,
+                'timestamp': (new Date()).getTime()
+              }
+            });
+          };
+        }
+        room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
+      };
+      process.nextTick(tmpF);
+    }
   });
 
 }
@@ -605,57 +499,60 @@ Room.prototype.close = function() {
   if (self.checkoutTimer) {
     clearInterval(self.checkoutTimer);
   };
-  
-  self.emit('close');
-  if (cluster.isWorker) {
-    cluster.worker.send({
-      'message': 'roomclose',
-      'info':{
-        'name': self.options.name
-      }
-    })
-  };
 
-  if (self.dataFile_writeStream) {
-    self.dataFile_writeStream.removeAllListeners();
-    delete self.dataFile_writeStream;
-  };
-
-  if (self.msgFile_writeStream) {
-    self.msgFile_writeStream.removeAllListeners();
-    delete self.msgFile_writeStream;
-  };
+  process.nextTick(function(){
+    self.emit('close');
+    if (cluster.isWorker) {
+      cluster.worker.send({
+        'message': 'roomclose',
+        'info':{
+          'name': self.options.name
+        }
+      })
+    }
+  });
 
   if (self.cmdSocket) {
-    self.cmdSocket.close();
-    delete self.cmdSocket;
-  };
-  if (self.dataSocket) {
-    self.dataSocket.close();
-    delete self.dataSocket;
-  };
-  if (self.msgSocket) {
-    self.msgSocket.close();
-    delete self.msgSocket;
-  };
-  
-  if (!self.options.permanent) {
-    logger.trace('Room file deleted when close, line 606');
-    if (self.dataFile) {
-      fs.unlink(self.dataFile);
-      delete self.dataFile;
-    };
-
-    if (self.dataFile) {
-      fs.unlink(self.msgFile);
-      delete self.msgFile;
-    };   
+    try {
+      self.cmdSocket.close();
+    } catch (e) {
+      logger.error('Cannot close cmdSocket:', e);
+    }
+    self.cmdSocket = null;
     
-    self.emit('destroyed');
   }
 
-  delete self.options;
-  self.removeAllListeners();
+  if (self.dataSocket) {
+    try {
+      self.dataSocket.close();
+    } catch (e) {
+      logger.error('Cannot close dataSocket:', e);
+    }
+    self.dataSocket = null;
+  }
+
+  if (self.msgSocket) {
+    try {
+      self.msgSocket.close();
+    } catch (e) {
+      logger.error('Cannot close msgSocket:', e);
+    }
+    self.msgSocket = null;
+  }
+
+  if (self.radio) {
+    if (!self.options.permanent) {
+      self.radio.removeFile();
+    }
+    self.radio.cleanup();
+    self.radio = null;
+  }
+
+  if (!self.options.permanent) {
+    process.nextTick(function(){
+      self.emit('destroyed');
+    });
+  }
   
   return this;
 };

@@ -3,8 +3,7 @@ var net = require('net-cluster');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
-var Transform = require('stream').Transform;
-var PassThrough = require('stream').PassThrough;
+var Writable = require('stream').Writable;
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -12,7 +11,7 @@ function StreamedSocketProtocol(options) {
   if (!(this instanceof StreamedSocketProtocol))
     return new StreamedSocketProtocol(options);
 
-  Transform.call(this, options);
+  Writable.call(this, options);
 
   var defaultOptions = {
     client: null
@@ -29,12 +28,13 @@ function StreamedSocketProtocol(options) {
   this._dataSize = 0;
 }
 
-util.inherits(StreamedSocketProtocol, Transform);
+util.inherits(StreamedSocketProtocol, Writable);
 
 function protocolPack(data) {
   var len = data.length;
   var c1, c2, c3, c4;
   var tmp = new Buffer(4);
+  // tmp["position_protocolPack"] = "protocolPack";
   c1 = len & 0xFF;
   len >>= 8;
   c2 = len & 0xFF;
@@ -46,10 +46,13 @@ function protocolPack(data) {
   tmp[1] = c3;
   tmp[2] = c2;
   tmp[3] = c1;
-  return Buffer.concat([tmp, data], 4+data.length);
+  var packed = Buffer.concat([tmp, data], 4+data.length);
+  tmp = null;
+  data = null;
+  return packed;
 };
 
-StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
+StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
   var stream_protocol = this;
   stream_protocol._buf.push(chunk);
   
@@ -60,6 +63,7 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
                 + (pg_size_array[1] << 16) 
                 + (pg_size_array[2] << 8) 
                 + pg_size_array[3];
+    pg_size_array = null;
     return pg_size;
   }
   
@@ -108,12 +112,17 @@ StreamedSocketProtocol.prototype._transform = function(chunk, encoding, done) {
     }else{
       stream_protocol.emit('message', stream_protocol._client, dataBlock);
     }
-    
-    stream_protocol.push(repacked);
     stream_protocol._dataSize = 0;
   }
-
   done();
+};
+
+StreamedSocketProtocol.prototype.cleanup = function() {
+  this._buf = null;
+  this._client = null;
+  this._options.client = null;
+  this._options = null;
+  this.removeAllListeners();
 };
 
 
@@ -121,7 +130,6 @@ function SocketServer(options) {
   net.Server.call(this);
   
   var defaultOptions = {
-    autoBroadcast: true,
     compressed: true,
     keepAlive: true,
     indebug: false
@@ -138,84 +146,57 @@ function SocketServer(options) {
   server.nullDevice = common.nullDevice;
 
   function onClientExit(cli) {
-    if (!cli) {
-      return;
-    };
     // no more output
     cli.unpipe();
-    cli.removeAllListeners();
     
     // erase from client list
     var index = server.clients.indexOf(cli);
-    if (index >= 0) {
-      server.clients.splice(index, 1);
-    };    
+    server.clients.splice(index, 1);
 
-    // also remove it from other clients' pipe list
-    _.forEach(server.clients, function(elm) {
-      if(elm['stream_parser']){
-        elm.stream_parser.unpipe(cli);
-      }
-    });
-
-    // time to destroy all associated streams
+    // time to destroy associated stream
     if (cli['stream_parser']) {
-      cli.stream_parser.unpipe();
-      cli.stream_parser.removeAllListeners();
+      cli['stream_parser'].cleanup();
       delete cli['stream_parser'];
     }
-    cli.destroy();
-    cli.isDead = true;
-  };
+    cli.removeAllListeners('datapack');
+    cli.removeAllListeners('message');
+    cli.removeAllListeners('drain');
+  }
 
   server.on('connection', function(cli) {
     cli.setKeepAlive(server.options.keepAlive);
     cli.setNoDelay(true);
     server.clients.push(cli);
-    cli.on('close', function() {
+
+    var onclose = function () {
       onClientExit(cli);
-    }).on('error', function(err) {
+      cli.destroy();
+    }
+
+    var onerror = function (err) {
       logger.error('Error with socket:', err);
-      onClientExit(cli); // just in case close event doesn't happpen
-    });
+    }
+
+    cli.on('error', onerror)
+    .once('close', onclose);
 
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
-    cli.stream_parser.on('datapack', function(c, d) {
+
+    var ondatapack = function (c, d) {
       server.emit('datapack', c, d);
-    });
+      if(c) c.emit('datapack', c, d);
+    }
 
-    cli.stream_parser.on('message', function(c, d) {
+    var onmessage = function (c, d) {
       server.emit('message', c, d);
-    });
+      if(c) c.emit('message', c, d);
+    }
 
-    if (op.autoBroadcast) {
-      cli.pipe(cli.stream_parser, {end: false});
+    cli.stream_parser.on('datapack', ondatapack)
+    .on('message', onmessage);
 
-      if (server.nullDevice) {
-        cli.stream_parser.pipe(server.nullDevice, {end: false});
-      };
+    cli.pipe(cli.stream_parser);
 
-      _.each(server.clients, function(c) {
-        if(c != cli){
-          cli.stream_parser.pipe(c, { end: false });
-          if(c.stream_parser){
-            // only if history all sent
-            cli.once('historydone', function() {
-              if (c.stream_parser) {
-                c.stream_parser.pipe(cli, { end: false });
-              }else{
-                onClientExit(c);
-              }
-              
-            });
-          }else{
-            logger.error('Cannot find stream_parser of client', c);
-          }
-        } 
-      });
-    }else{
-      cli.pipe(cli.stream_parser, { end: false });
-    };
   }).on('error', function(err) {
     logger.error('Error with socket:', err);
   });
@@ -235,7 +216,11 @@ SocketServer.prototype.sendData = function (cli, data, fn) {
       }else{
         cli.write( protocolPack(r_data) );
       }
+      tmpData = null;
+      d = null;
+      r_data = null;
     });
+    data = null;
   }else{
     var tmpData = new Buffer(1);
     tmpData[0] = 0x0;
@@ -256,7 +241,9 @@ SocketServer.prototype.broadcastData = function (data) {
 };
 
 SocketServer.prototype.kick = function(cli) {
+  var server = this;
   cli.end();
 };
 
 exports.SocketServer = SocketServer;
+exports.StreamedSocketProtocol = StreamedSocketProtocol;
