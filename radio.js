@@ -131,7 +131,6 @@ RadioReceiver.prototype.write = function(datachunk, source) {
     var r = this;
 
     r.writeBufferedFile.append(datachunk, function() {
-      logger.trace('data appended');
       async.each(r.clients, function(ele, callback){
         if (ele == source) {
           callback();

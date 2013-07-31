@@ -42,7 +42,7 @@ function BufferedFile(options) {
   var bf = this;
   this.op = _.defaults(options, defaultOptions);
   
-  bf.buf = new Buffer(0);
+  bf.buf = new Buffers();
   bf.fileSize = 0;
   bf.wholeSize = 0;
   bf.fd = null;
@@ -89,7 +89,7 @@ BufferedFile.prototype.writeToDisk = function (fn) {
     return;
   }
 
-  var data = bf.buf;
+  var data = bf.buf.toBuffer();
   fs.appendFile(bf.op.fileName, data, function(err) {
     if(err) {
       logger.log(err);
@@ -100,14 +100,13 @@ BufferedFile.prototype.writeToDisk = function (fn) {
       }
     }
   });
-  bf.buf = new Buffer(0);
+  bf.buf = new Buffers();
   bf.emit('written');
 };
 
 BufferedFile.prototype.append = function (data, fn) {
   var bf = this;
-  bf.buf = Buffer.concat([bf.buf, data]);
-  logger.trace('data appended', bf.buf);
+  bf.buf.push(data);
   bf.wholeSize += data.length;
   if(bf.buf.length >= bf.op.bufferSize){
     bf.writeToDisk();
@@ -129,7 +128,7 @@ BufferedFile.prototype.read = function (pos, length, fn) {
   if (pos >= bf.fileSize) {
     // all in buffers
     var start = pos - bf.fileSize;
-    // NOTE: buffer may changed with that sliced data
+    // FIXME: slice may fail, even there's enough data
     var bbb = bf.buf.slice(start, start+length);
     fn(bbb);
   } else {
@@ -146,20 +145,18 @@ BufferedFile.prototype.read = function (pos, length, fn) {
         } else {
           var buffer_part = bf.buf.slice(0, buffer_part_length);
           if (bytesRead != file_part_length) {
-            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-            logger.trace('wanted length, pos: ', length, pos, 
-              'buffer part: ', buffer_part_length, 
-              'file part', file_part_length);
+            // logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            // logger.trace('wanted length, pos: ', length, pos, 
+            //   'buffer part: ', buffer_part_length, 
+            //   'file part', file_part_length);
             fn(new Buffer(0));
-            return;
           }
           if (buffer_part.length != buffer_part_length) {
-            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-            logger.trace('wanted length, pos: ', length, pos, 
-              'buffer part: ', buffer_part_length, 
-              'file part', file_part_length);
+            // logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            // logger.trace('wanted length, pos: ', length, pos, 
+            //   'buffer part: ', buffer_part_length, 
+            //   'file part', file_part_length);
             fn(new Buffer(0));
-            return;
           }
           var final_parts = Buffer.concat([file_part, buffer_part]);
           fn(final_parts);
@@ -211,7 +208,7 @@ BufferedFile.prototype.readAll = function (fn) {
 BufferedFile.prototype.clearAll = function (fn) {
   var bf = this;
   if(bf.buf.length > 0){
-    bf.buf = new Buffer(0);
+    bf.buf = new Buffers();
   }
 
   async.auto({
