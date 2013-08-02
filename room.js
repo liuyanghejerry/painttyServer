@@ -566,7 +566,7 @@ Room.prototype.close = function() {
 
 Room.prototype.currentLoad = function() {
   // do not count cmdSocket.clients directly because it's a public socket
-  if (this.cmdSocket) {
+  if (this.status == 'running') {
     return (_.filter(this.cmdSocket.clients, function(cli){ 
         return cli['username'] && cli['clientid']; 
       })).length;
