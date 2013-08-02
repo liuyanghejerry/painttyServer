@@ -55,6 +55,7 @@ function Room(options) {
     return;
   }
 
+  room.status = 'init';
   room.router = new Router();
 
   function prepareCheckoutTimer(r_room) {
@@ -469,6 +470,7 @@ function Room(options) {
         room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
       };
       process.nextTick(tmpF);
+      room.status = 'running';
     }
   });
 
@@ -490,6 +492,9 @@ Room.prototype.ports = function() {
 
 Room.prototype.close = function() {
   var self = this;
+  if (self.status == 'closed') {
+    return self;
+  }
   
   logger.log('Room', self.options.name, 'is closed.');
   if (self.uploadCurrentInfoTimer) {
@@ -553,6 +558,8 @@ Room.prototype.close = function() {
       self.emit('destroyed');
     });
   }
+
+  self.status = 'closed';
   
   return this;
 };

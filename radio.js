@@ -214,8 +214,13 @@ RadioReceiver.prototype.addClient = function(cli) {
     },
     // slice whole file into pieces
     function(fileSize, callback){
-      cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(0, fileSize)));
-      callback();
+      if (cli.pendingList) {
+        cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(0, fileSize)));
+        callback();
+      }else{
+        callback(new Error("Client has been closed"));
+      }
+      
     },
     // send them
     function(callback) {

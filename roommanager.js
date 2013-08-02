@@ -17,6 +17,7 @@ var db = mongoose.connection;
 var logger = common.logger;
 var globalConf = common.globalConf;
 
+
 function RoomManager(options) {
   events.EventEmitter.call(this);
 
