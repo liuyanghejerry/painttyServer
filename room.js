@@ -33,7 +33,7 @@ function Room(options) {
     self.welcomemsg = '';
     self.emptyclose = false;
     self.permanent = true;
-    self.expiration = 0; // 0 for limitless
+    self.expiration = 48; // in hours; 0 for limitless
     self.log = false; // not really used
     self.recovery = false;
     self.lastCheckoutTimestamp = Date.now();
@@ -59,7 +59,7 @@ function Room(options) {
   room.router = new Router();
 
   function prepareCheckoutTimer(r_room) {
-    if (r_room.options.expiration) {
+    if (r_room.options.expiration > 0) {
       r_room.checkoutTimer = setInterval(function onTimeout() {
         var stampDiff = Date.now() - r_room.options.lastCheckoutTimestamp;
         if ( stampDiff < r_room.options.expiration * 3600 * 1000 ) {

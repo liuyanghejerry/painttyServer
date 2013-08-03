@@ -322,7 +322,7 @@ function RoomManager(options) {
           'emptyclose': emptyclose,
           'password': password,
           'canvasSize': canvasSize,
-          'expiration': 72 // 72 hours to close itself
+          'expiration': 48 // 48 hours to close itself
         });
 
         room.on('create', function(info) {
