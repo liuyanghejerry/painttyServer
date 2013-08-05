@@ -66,9 +66,10 @@ function Room(options) {
           return;
         };
 
+        logger.trace('Room', r_room.options.name, 'timeout and will be deleted.');
+        r_room.options.permanent = false;
         if (r_room.currentLoad() > 0) {
           r_room.options.emptyclose = true;
-          r_room.options.permanent = false;
         }else{
           r_room.close();
         }       
