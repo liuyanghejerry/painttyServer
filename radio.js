@@ -119,7 +119,7 @@ function appendToPendings(chunk, list) {
     // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
   }
 
-  if (list.length >= MAX_CHUNKS_IN_QUEUE) {
+  if (list.length >= MAX_CHUNKS_IN_QUEUE*2) {
     // TODO: add another function to re-split chunks in queue
     logger.warn('There\'re ', list.length, 'chunks in a single queue!');
   }
