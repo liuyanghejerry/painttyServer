@@ -14,6 +14,7 @@ var Radio = require('./radio.js');
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
+var globalSalt = common.globalSalt;
 
 function Room(options) {
   events.EventEmitter.call(this);
@@ -81,17 +82,9 @@ function Room(options) {
   async.auto({
     'load_salt': function(callback) {
       if (room.options.salt.length < 1) {
-        fs.readFile(globalConf['salt']['path'], function(err, data) {
-          if(err) {
-            logger.error('Cannot load salt file:', err);
-            callback(err);
-          }
-          room.options.salt = data;
-          callback();
-        });
-      }else{
-        callback();
+        room.options.salt = globalSalt;
       }
+      callback();
     },
     'gen_signedkey': ['load_salt', function(callback) {
       if (room.options.recovery != true) {

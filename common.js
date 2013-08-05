@@ -68,6 +68,11 @@ exports.createNullDevice = function () {
   }
 };
 
+exports.readSalt = function() {
+  return fs.readFileSync(globalConf['salt']['path']);
+}
+
 exports.logger = logger;
 exports.globalConf = globalConf;
 exports.nullDevice = exports.createNullDevice();
+exports.globalSalt = exports.readSalt();
