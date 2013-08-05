@@ -19,7 +19,6 @@ var globalSalt = common.globalSalt;
 function Room(options) {
   events.EventEmitter.call(this);
   var room = this;
-  room.workingSockets = 0;
 
   var defaultOptions = new
   function() {
@@ -82,7 +81,12 @@ function Room(options) {
   async.auto({
     'load_salt': function(callback) {
       if (room.options.salt.length < 1) {
-        room.options.salt = globalSalt;
+        if (globalSalt.length < 1) {
+          logger.error('Salt load error!');
+          room.options.salt = new Buffer('temp salt');
+        }else{
+          room.options.salt = globalSalt;
+        }
       }
       callback();
     },
