@@ -64,7 +64,7 @@ function RoomManager(options) {
         _.each(r_self.roomInfos, function(item) {
           if (_.isUndefined(item)) return;
           var r = {
-            cmdport: item.cmdPort,
+            port: item.port,
             serveraddress: r_self.pubServer.address().address,
             maxload: item.maxLoad,
             currentload: item.currentLoad,
@@ -330,7 +330,7 @@ function RoomManager(options) {
             response: 'newroom',
             result: true,
             'info': {
-              port: info['cmdPort'],
+              port: info['port'],
               key: info['key']
             }
           };
@@ -339,7 +339,7 @@ function RoomManager(options) {
           r_self.pubServer.sendData(cli, new Buffer(jsString));
           r_self.roomObjs[infoObj['name']] = room;
           var infoBlock = {
-            cmdPort: info['cmdPort'],
+            port: info['port'],
             name: info['name'],
             maxLoad: info['maxLoad'],
             'private': info['private'],
@@ -482,7 +482,7 @@ function RoomManager(options) {
             n_room.once('create', function(info) {
               self.roomObjs[info['name']] = n_room;
               var infoBlock = {
-                cmdPort: info['cmdPort'],
+                port: info['port'],
                 name: info['name'],
                 maxLoad: info['maxLoad'],
                 'private': info['private'],

@@ -19,7 +19,7 @@ function RadioChunk(start, length) {
   this.chunkSize = length;
 }
 
-function RadioReceiver(options) {
+function Radio(options) {
   events.EventEmitter.call(this, options);
   var self = this;
 
@@ -61,14 +61,14 @@ function RadioReceiver(options) {
     }]
   }, function(err) {
     if (err) {
-      logger.error('Error while creating RadioReceiver: ', err);
+      logger.error('Error while creating Radio: ', err);
     }else{
       process.nextTick(function(){self.emit('ready');});
     }
   });
 }
 
-util.inherits(RadioReceiver, events.EventEmitter);
+util.inherits(Radio, events.EventEmitter);
 
 function split_chunk (chunk) {
   var result_queue = [];
@@ -126,7 +126,7 @@ function appendToPendings(chunk, list) {
   return list;
 }
 
-RadioReceiver.prototype.write = function(datachunk, source) {
+Radio.prototype.write = function(datachunk, source) {
   if(this.writeBufferedFile) {
     var r = this;
 
@@ -147,7 +147,7 @@ RadioReceiver.prototype.write = function(datachunk, source) {
     r.lastPos += datachunk.length;
     
   }else{
-    logger.error('RadioReceiver commanded to write without stream attached');
+    logger.error('Radio commanded to write without stream attached');
   }
 };
 
@@ -172,9 +172,9 @@ function fetch_and_send(list, bufferedfile, client, ok) {
   ok(false);
 }
 
-RadioReceiver.prototype.addClient = function(cli) {
+Radio.prototype.addClient = function(cli) {
   this.clients.push(cli);
-  var receiver = this;
+  var radio = this;
   cli.pendingList = [];
   cli.processPending = function(done) {
     var c = cli;
@@ -186,7 +186,7 @@ RadioReceiver.prototype.addClient = function(cli) {
         function() {
           return should_next;
         }, function(callback){
-          fetch_and_send(c.pendingList, receiver.writeBufferedFile, c, function(go_on){
+          fetch_and_send(c.pendingList, radio.writeBufferedFile, c, function(go_on){
           should_next = go_on;
           callback();
         });
@@ -210,7 +210,7 @@ RadioReceiver.prototype.addClient = function(cli) {
   async.waterfall([
     // fetch file size
     function(callback){
-      callback(null, receiver.writeBufferedFile.wholeSize);
+      callback(null, radio.writeBufferedFile.wholeSize);
     },
     // slice whole file into pieces
     function(fileSize, callback){
@@ -243,10 +243,6 @@ RadioReceiver.prototype.addClient = function(cli) {
     }
   });
 
-  var ondatapack = function (source, data) {
-    receiver.write(data, source);
-  }
-
   var ondrain = function () {
     if(cli.processPending) {
       cli.processPending();
@@ -259,26 +255,24 @@ RadioReceiver.prototype.addClient = function(cli) {
       cli.sendTimer = null;
     }
     cli.pendingList = null;
-    if (receiver.clients) {
-      var index = receiver.clients.indexOf(cli);
-      receiver.clients.splice(index, 1);
+    if (radio.clients) {
+      var index = radio.clients.indexOf(cli);
+      radio.clients.splice(index, 1);
     }
   }
 
   var cleanup = function () {
-    cli.removeListener('datapack', ondatapack);
     cli.removeListener('drain', ondrain);
   }
 
-  cli.on('datapack', ondatapack)
-  .on('drain', ondrain)
+  cli.on('drain', ondrain)
   .once('close', onclose)
   .once('close', cleanup);
 
   return this;
 };
 
-RadioReceiver.prototype.prune = function() {
+Radio.prototype.prune = function() {
   var self = this;
   async.series([
       // delete old pending chunks
@@ -309,133 +303,17 @@ RadioReceiver.prototype.prune = function() {
   return this;
 };
 
-RadioReceiver.prototype.removeFile = function() {
+Radio.prototype.removeFile = function() {
   fs.unlink(this.options.filename);
 };
 
-RadioReceiver.prototype.cleanup = function() {
+Radio.prototype.cleanup = function() {
   this.options = null;
   this.clients = null;
   var self = this;
   if (this.writeBufferedFile) {
     this.writeBufferedFile.cleanup();
     this.writeBufferedFile = null;
-  }
-  this.removeAllListeners();
-};
-
-function Radio(options) {
-  events.EventEmitter.call(this);
-  var radio = this;
-
-  var defaultOptions = new
-  function() {
-    this.dataFile = '';
-    this.msgFile = '';
-    this.recovery = false;
-  };
-
-  if (_.isUndefined(options)) {
-    var options = {};
-  }
-  var op = _.defaults(options, defaultOptions);
-  radio.options = op;
-
-  async.auto({
-    'create_dataRadio': function(callback){
-      radio.dataRadio = new RadioReceiver({
-        'filename': radio.options.dataFile, 
-        'recovery': radio.options.recovery
-      });
-
-      radio.dataRadio.on('error', function(er){
-        logger.error('Error while running radio', er);
-      }).once('ready', callback);
-    },
-    'create_msgRadio': function(callback){
-      radio.msgRadio = new RadioReceiver({
-        'filename': radio.options.msgFile, 
-        'recovery': radio.options.recovery
-      });
-
-      radio.msgRadio.on('error', function(er){
-        logger.error('Error while running radio', er);
-      }).once('ready', callback);
-    }
-  }, function(err) {
-    if (err) {
-      logger.error('Error while creating Radio: ', err);
-      if (radio.msgRadio) {
-        radio.msgRadio.cleanup();
-      };
-      if (radio.dataRadio) {
-        radio.dataRadio.cleanup();
-      };
-    }else{
-      process.nextTick(function(){radio.emit('ready');});
-    }
-  });
-
-}
-
-util.inherits(Radio, events.EventEmitter);
-
-Radio.prototype.writeData = function(chunk, client) {
-  if (this.dataRadio) {
-    this.dataRadio.write(chunk, client);
-  }
-};
-
-Radio.prototype.dataLength = function() {
-  if (this.dataRadio) {
-    return this.dataRadio.lastPos;
-  }else{
-    return 0;
-  }
-};
-
-Radio.prototype.writeMsg = function(chunk) {
-  if (this.msgRadio) {
-    this.msgRadio.write(chunk, client);
-  }
-};
-
-Radio.prototype.msgLength = function() {
-  if (this.msgRadio) {
-    return this.msgRadio.lastPos;
-  }else{
-    return 0;
-  }
-};
-
-Radio.prototype.joinMsgGroup = function(client) {
-  if (this.msgRadio) {
-    this.msgRadio.addClient(client);
-  }
-};
-
-Radio.prototype.joinDataGroup = function(client) {
-  if (this.dataRadio) {
-    this.dataRadio.addClient(client);
-  }
-};
-
-Radio.prototype.removeFile = function() {
-  if (this.dataRadio) {
-    this.dataRadio.removeFile();
-  }
-  if (this.msgRadio) {
-    this.msgRadio.removeFile();
-  }
-};
-
-Radio.prototype.cleanup = function() {
-  this.options = null;
-  if (this.dataRadio) {
-    this.dataRadio.cleanup();
-  }
-  if (this.msgRadio) {
-    this.msgRadio.cleanup();
   }
   this.removeAllListeners();
 };

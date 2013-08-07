@@ -93,14 +93,14 @@ painttyWidget:
 
 	{
 		request: "roomlist",
-		type: "command"
+		type: "manager"
 	}
 
 painttyServer:
 
 	{
 		response: "roomlist",
-		type: "command",
+		type: "manager",
 		result: true,
 		roomlist: [
 			{
@@ -135,7 +135,7 @@ painttyWidget:
 
 	{
 		request: "newroom",
-		type: "command",
+		type: "manager",
 		info: {
 			name: "",
 			maxload: 8,
@@ -153,7 +153,7 @@ painttyServer:
 
 	{
 		response: "newroom",
-		type: "command",
+		type: "manager",
 		result: true,
 		info: {
 			port: 20391,
@@ -165,7 +165,7 @@ painttyServer:
 
 	{
 		response: "newroom",
-		type: "command",
+		type: "manager",
 		result: false,
 		errcode: 200
 	}

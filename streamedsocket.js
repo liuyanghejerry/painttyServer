@@ -100,17 +100,16 @@ StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
     var dataBlock = packageData.slice(1);
     
     var repacked = REBUILD(packageData);
-    stream_protocol.emit('datapack', stream_protocol._client, repacked);
     if(isCompressed) {
       common.qUncompress(dataBlock, function(d, err) {
         if(err){
           logger.error('Uncompress error:', err);
           return;
         }
-        stream_protocol.emit('message', stream_protocol._client, d);
+        stream_protocol.emit('message', stream_protocol._client, d, repacked);
       });
     }else{
-      stream_protocol.emit('message', stream_protocol._client, dataBlock);
+      stream_protocol.emit('message', stream_protocol._client, dataBlock, repacked);
     }
     stream_protocol._dataSize = 0;
   }
@@ -158,7 +157,6 @@ function SocketServer(options) {
       cli['stream_parser'].cleanup();
       delete cli['stream_parser'];
     }
-    cli.removeAllListeners('datapack');
     cli.removeAllListeners('message');
     cli.removeAllListeners('drain');
   }
@@ -182,18 +180,12 @@ function SocketServer(options) {
 
     cli.stream_parser = new StreamedSocketProtocol({'client': cli});
 
-    var ondatapack = function (c, d) {
-      server.emit('datapack', c, d);
-      if(c) c.emit('datapack', c, d);
+    var onmessage = function (c, d, o) {
+      server.emit('message', c, d, o);
+      if(c) c.emit('message', c, d, o);
     }
 
-    var onmessage = function (c, d) {
-      server.emit('message', c, d);
-      if(c) c.emit('message', c, d);
-    }
-
-    cli.stream_parser.on('datapack', ondatapack)
-    .on('message', onmessage);
+    cli.stream_parser.on('message', onmessage);
 
     cli.pipe(cli.stream_parser);
 

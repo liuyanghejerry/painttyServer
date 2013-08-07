@@ -145,83 +145,12 @@ function Room(options) {
     }],
     'create_radio': ['gen_fileNames', function(callback){
       room.radio = new Radio({
-        'dataFile': room.dataFile,
-        'msgFile': room.msgFile,
+        'filename': room.archive,
         'recovery': room.options.recovery
       });
       room.radio.once('ready', callback);
     }],
-    'init_dataSocket': ['create_radio', function(callback){
-      room.dataSocket = new socket.SocketServer();
-      room.dataSocket.maxConnections = room.options.maxLoad;
-      room.dataSocket.on('connection',
-      function(con) {
-        async.auto({
-          'join_radio': function(callback){
-            room.radio.joinDataGroup(con);
-            callback();
-          },
-          'send_to_clusters': function(callback){
-            if (cluster.isWorker) {
-              cluster.worker.send({
-                'message': 'loadchange',
-                'info': {
-                  'name': room.options.name,
-                  'currentLoad': room.currentLoad()
-                }
-              });
-            };
-            callback();
-          }
-        });
-
-        con.once('close', function() {
-          if (cluster.isWorker) {
-            cluster.worker.send({
-              'message': 'loadchange',
-              'info': {
-                'name': room.options.name,
-                'currentLoad': room.currentLoad()
-              }
-            });
-          }
-        });
-      }).on('listening', callback);
-      room.dataSocket.listen(0, '::');
-    }],
-    'init_msgSocket': ['create_radio', function(callback){
-      room.msgSocket = new socket.SocketServer();
-      room.msgSocket.maxConnections = room.options.maxLoad;
-      room.msgSocket.on('connection', function(con) {
-        con.once('close', function() {
-          if (room.options.emptyclose) {
-            if (room.currentLoad() < 1) { // when exit, still connected on.
-              room.close();
-            }
-          }
-        });
-
-        room.msgSocket.sendData(con, common.jsonToString({
-          content: globalConf['room']['serverMsg']
-        }));
-        // TODO: use cmd channal
-        // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
-        //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
-        //             '如果您在使用中有任何疑问，'+
-        //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
-        // BUG: use con will send msg into msgSocket, not cmdSocket
-        // room.notify(con, send_msg);
-        if (room.options.welcomemsg.length) {
-          room.msgSocket.sendData(con, common.jsonToString({
-            content: room.options.welcomemsg + '\n'
-          }));
-        }
-
-        room.radio.joinMsgGroup(con);
-      }).on('listening', callback);
-      room.msgSocket.listen(0, '::');
-    }],
-    'install_router': ['init_msgSocket', 'init_dataSocket', function(callback){
+    'install_router': ['create_radio', function(callback){
       room.router.reg('request', 'login',
       function(cli, obj) {
         var r_room = room;
@@ -234,7 +163,7 @@ function Room(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
           return;
         }
         // password check
@@ -247,7 +176,7 @@ function Room(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            r_room.socket.sendData(cli, new Buffer(jsString));
             return;
           }
         }
@@ -261,7 +190,7 @@ function Room(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
           return;
         };
         // send info
@@ -269,11 +198,9 @@ function Room(options) {
           response: 'login',
           result: true,
           info: {
-            historysize: r_room.radio.dataLength(),
-            dataport: r_room.ports().dataPort,
-            msgport: r_room.ports().msgPort,
-            size: r_room.options.canvasSize,
-            clientid: function() {
+            'historysize': r_room.radio.dataLength(),
+            'size': r_room.options.canvasSize,
+            'clientid': function() {
               var hash = crypto.createHash('sha1');
               hash.update(r_room.options.name + obj['name'] + r_room.options.salt + (new Date()).getTime(), 'utf8');
               hash = hash.digest('hex');
@@ -286,7 +213,7 @@ function Room(options) {
         };
         logger.log(ret);
         var jsString = common.jsonToString(ret);
-        r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+        r_room.socket.sendData(cli, new Buffer(jsString));
         cli['username'] = obj['name'];
         return;
       },
@@ -301,7 +228,7 @@ function Room(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             var ret = {
@@ -310,7 +237,7 @@ function Room(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            r_room.socket.sendData(cli, new Buffer(jsString));
             var ret_all = {
               action: 'close',
               'info': {
@@ -319,7 +246,7 @@ function Room(options) {
             };
             jsString = common.jsonToString(ret_all);
             logger.log(jsString);
-            r_room.cmdSocket.broadcastData(new Buffer(jsString));
+            r_room.socket.broadcastData(new Buffer(jsString));
             r_room.options.emptyclose = true;
             r_room.options.permanent = false;
           }
@@ -334,7 +261,7 @@ function Room(options) {
             result: false
           };
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             r_room.radio.dataRadio.prune();
@@ -343,19 +270,19 @@ function Room(options) {
               result: true
             };
             var jsString = common.jsonToString(ret);
-            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            r_room.socket.sendData(cli, new Buffer(jsString));
             var ret_all = {
               action: 'clearall',
             };
             jsString = common.jsonToString(ret_all);
-            r_room.cmdSocket.broadcastData(new Buffer(jsString));
+            r_room.socket.broadcastData(new Buffer(jsString));
           } else {
             var ret = {
               response: 'clearall',
               result: false
             };
             var jsString = common.jsonToString(ret);
-            r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+            r_room.socket.sendData(cli, new Buffer(jsString));
           }
         }
       },
@@ -366,14 +293,14 @@ function Room(options) {
           return;
         }
         logger.log('onlinelist request by', obj['clientid']);
-        if (!_.findWhere(r_room.cmdSocket.clients, {
+        if (!_.findWhere(r_room.socket.clients, {
           'clientid': obj['clientid']
         })) {
           return;
         }
 
         var people = [];
-        _.each(r_room.cmdSocket.clients,
+        _.each(r_room.socket.clients,
         function(va) {
           if (va['username'] && va['clientid']) {
             people.push({
@@ -393,7 +320,7 @@ function Room(options) {
         };
         logger.log(ret);
         var jsString = common.jsonToString(ret);
-        r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+        r_room.socket.sendData(cli, new Buffer(jsString));
       },
       room).reg('request', 'checkout',
       function(cli, obj) {
@@ -406,7 +333,7 @@ function Room(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
         }
         if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
           r_room.options.lastCheckoutTimestamp = Date.now();
@@ -418,20 +345,87 @@ function Room(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_room.cmdSocket.sendData(cli, new Buffer(jsString));
+          r_room.socket.sendData(cli, new Buffer(jsString));
         }
       },
       room);
       callback();
     }],
-    'init_cmdSocket': ['install_router', function(callback){
-      room.cmdSocket = new socket.SocketServer();
+    'init_socket': ['install_router', 'create_radio', function(callback){
+      room.socket = new socket.SocketServer();
+      room.socket.maxConnections = room.options.maxLoad;
+      room.socket.on('connection',
+      function(con) {
+        async.auto({
+          'join_radio': function(callback){
+            room.radio.addClient(con);
+            callback();
+          },
+          'send_to_clusters': function(callback){
+            if (cluster.isWorker) {
+              cluster.worker.send({
+                'message': 'loadchange',
+                'info': {
+                  'name': room.options.name,
+                  'currentLoad': room.currentLoad()
+                }
+              });
+            };
+            callback();
+          },
+          'send_announcement': function(callback){
+            room.socket.sendData(con, common.jsonToString({
+              content: globalConf['room']['serverMsg']
+            }));
+          },
+          'send_room_welcome_msg': ['send_announcement', function(callback){
+            // TODO: use cmd channal
+            // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
+            //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
+            //             '如果您在使用中有任何疑问，'+
+            //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
+            // BUG: use con will send msg into msgSocket, not cmdSocket
+            // room.notify(con, send_msg);
+            if (room.options.welcomemsg.length) {
+              room.socket.sendData(con, common.jsonToString({
+                content: room.options.welcomemsg + '\n'
+              }));
+            }
+          }]
+        });
 
-      room.cmdSocket.on('message', function(client, data) {
-        var obj = common.stringToJson(data);
-        room.router.message(client, obj);
+        con.once('close', function() {
+          if (room.options.emptyclose) {
+            if (room.currentLoad() < 1) { // when exit, still connected on.
+              room.close();
+            }
+          }
+          if (cluster.isWorker) {
+            cluster.worker.send({
+              'message': 'loadchange',
+              'info': {
+                'name': room.options.name,
+                'currentLoad': room.currentLoad()
+              }
+            });
+          }
+        });
+      }).on('message', function(client, message, datapack) {
+        var obj = common.stringToJson(message);
+        if ( obj['type'] && _.isString(obj['type']) ) {
+          switch (obj['type']) {
+            case 'command':
+              room.router.message(client, obj);
+            break;
+            case 'data': // fall-through
+            case 'message': // fall-through
+            default:
+              room.radio.write(datapack, client);
+            break;
+          }
+        }
       }).on('listening', callback);
-      room.cmdSocket.listen(0, '::');
+      room.socket.listen(0, '::');
     }]
   }, function(er){
     if (er) {
@@ -441,7 +435,7 @@ function Room(options) {
     }else{
       var tmpF = function() {
         room.emit('create', {
-          'cmdPort': room.cmdSocket.address().port,
+          'port': room.socket.address().port,
           'maxLoad': room.options.maxLoad,
           'currentLoad': room.currentLoad(),
           'name': room.options.name,
@@ -456,7 +450,7 @@ function Room(options) {
               'message': 'roominfo',
               'info':{
                 'name': room.options.name,
-                'cmdPort': room.cmdSocket.address().port,
+                'port': room.socket.address().port,
                 'maxLoad': room.options.maxLoad,
                 'currentLoad': room.currentLoad(),
                 'private': room.options.password.length > 0,
@@ -480,12 +474,8 @@ Room.prototype.start = function() {
   return this;
 };
 
-Room.prototype.ports = function() {
-  return {
-    cmdPort: this.cmdSocket.address().port,
-    dataPort: this.dataSocket.address().port,
-    msgPort: this.msgSocket.address().port
-  };
+Room.prototype.port = function() {
+  return this.socket.address().port;
 };
 
 Room.prototype.close = function() {
@@ -515,32 +505,14 @@ Room.prototype.close = function() {
     }
   });
 
-  if (self.cmdSocket) {
+  if (self.socket) {
     try {
-      self.cmdSocket.close();
+      self.socket.close();
     } catch (e) {
-      logger.error('Cannot close cmdSocket:', e);
+      logger.error('Cannot close socket:', e);
     }
-    self.cmdSocket = null;
+    self.socket = null;
     
-  }
-
-  if (self.dataSocket) {
-    try {
-      self.dataSocket.close();
-    } catch (e) {
-      logger.error('Cannot close dataSocket:', e);
-    }
-    self.dataSocket = null;
-  }
-
-  if (self.msgSocket) {
-    try {
-      self.msgSocket.close();
-    } catch (e) {
-      logger.error('Cannot close msgSocket:', e);
-    }
-    self.msgSocket = null;
   }
 
   if (self.radio) {
@@ -563,9 +535,9 @@ Room.prototype.close = function() {
 };
 
 Room.prototype.currentLoad = function() {
-  // do not count cmdSocket.clients directly because it's a public socket
+  // do not count socket.clients directly because it's a public socket
   if (this.status == 'running') {
-    return (_.filter(this.cmdSocket.clients, function(cli){ 
+    return (_.filter(this.socket.clients, function(cli){ 
         return cli['username'] && cli['clientid']; 
       })).length;
   }else{
@@ -580,8 +552,8 @@ Room.prototype.notify = function(con, content) {
     action: 'notify',
     'content': content
   };
-  self.cmdSocket.sendData(con, common.jsonToString(sendContent));
-  logger.debug('cmdSocket: ', self.cmdSocket, sendContent);
+  self.socket.sendData(con, common.jsonToString(sendContent));
+  logger.debug('socket: ', self.socket, sendContent);
 };
 
 Room.prototype.bradcastMessage = function(content) {
@@ -590,7 +562,7 @@ Room.prototype.bradcastMessage = function(content) {
     action: 'notify',
     'content': content
   };
-  self.cmdSocket.broadcastData(common.jsonToString(sendContent));
+  self.socket.broadcastData(common.jsonToString(sendContent));
 };
 
 module.exports = Room;
