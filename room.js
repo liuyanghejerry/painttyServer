@@ -40,8 +40,7 @@ function Room(options) {
     // NOTICE: below options are generated in runtime or passed only when recovery
     self.salt = '';
     self.key = '';
-    self.dataFile = '';
-    self.msgFile = '';
+    self.archive = '';
   };
 
   if (_.isUndefined(options)) {
@@ -123,21 +122,13 @@ function Room(options) {
     },
     'gen_fileNames': ['ensure_dir', function(callback){
       if (room.options.recovery === true) {
-        room.dataFile = room.options.dataFile;
-        room.msgFile = room.options.msgFile;
+        room.archive = room.options.archive;
       }else{
-        room.dataFile = function() {
+        room.archive = function() {
           var hash = crypto.createHash('sha1');
           hash.update(room.options.name, 'utf8');
           hash = hash.digest('hex');
           return globalConf['room']['path'] + hash + '.data';
-        } ();
-
-        room.msgFile = function() {
-          var hash = crypto.createHash('sha1');
-          hash.update(op.name, 'utf8');
-          hash = hash.digest('hex');
-          return globalConf['room']['path'] + hash + '.msg';
         } ();
       }
       callback();
@@ -158,6 +149,7 @@ function Room(options) {
         if (!obj['name'] || !_.isString(obj['name'])) {
           var ret = {
             response: 'login',
+            type: 'command',
             result: false,
             errcode: 301
           };
@@ -171,6 +163,7 @@ function Room(options) {
           if (!obj['password'] || !_.isString(obj['password']) || obj['password'] != r_room.options.password) {
             var ret = {
               response: 'login',
+              type: 'command',
               result: false,
               errcode: 302
             };
@@ -185,6 +178,7 @@ function Room(options) {
         if (toobusy()) {
           var ret = {
             response: 'login',
+            type: 'command',
             result: false,
             errcode: 305
           };
@@ -196,6 +190,7 @@ function Room(options) {
         // send info
         var ret = {
           response: 'login',
+          type: 'command',
           result: true,
           info: {
             'historysize': r_room.radio.dataLength(),
@@ -214,7 +209,10 @@ function Room(options) {
         logger.log(ret);
         var jsString = common.jsonToString(ret);
         r_room.socket.sendData(cli, new Buffer(jsString));
+
         cli['username'] = obj['name'];
+        cli['anonymous_login'] = true;
+        cli.emit('login');
         return;
       },
       room).reg('request', 'close',
@@ -224,6 +222,7 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'close',
+            type: 'command',
             result: false
           };
           logger.log(ret);
@@ -233,6 +232,7 @@ function Room(options) {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             var ret = {
               response: 'close',
+              type: 'command',
               result: true
             };
             logger.log(ret);
@@ -258,6 +258,7 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'clearall',
+            type: 'command',
             result: false
           };
           var jsString = common.jsonToString(ret);
@@ -267,6 +268,7 @@ function Room(options) {
             r_room.radio.dataRadio.prune();
             var ret = {
               response: 'clearall',
+              type: 'command',
               result: true
             };
             var jsString = common.jsonToString(ret);
@@ -279,6 +281,7 @@ function Room(options) {
           } else {
             var ret = {
               response: 'clearall',
+              type: 'command',
               result: false
             };
             var jsString = common.jsonToString(ret);
@@ -315,6 +318,7 @@ function Room(options) {
 
         var ret = {
           response: 'onlinelist',
+          type: 'command',
           result: true,
           onlinelist: people
         };
@@ -328,6 +332,7 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'checkout',
+            type: 'command',
             result: false,
             errcode: 701
           };
@@ -340,6 +345,7 @@ function Room(options) {
           r_room.emit('checkout');
           var ret = {
             response: 'checkout',
+            type: 'command',
             result: true,
             cycle: r_room.options.expiration ? r_room.options.expiration: 0
           };
@@ -357,10 +363,6 @@ function Room(options) {
       room.socket.on('connection',
       function(con) {
         async.auto({
-          'join_radio': function(callback){
-            room.radio.addClient(con);
-            callback();
-          },
           'send_to_clusters': function(callback){
             if (cluster.isWorker) {
               cluster.worker.send({
@@ -373,24 +375,34 @@ function Room(options) {
             };
             callback();
           },
-          'send_announcement': function(callback){
-            room.socket.sendData(con, common.jsonToString({
-              content: globalConf['room']['serverMsg']
-            }));
+          'wait_login': function(callback){
+            con.once('login', callback);
           },
+          'send_announcement': ['wait_login', function(callback){
+            room.socket.sendData(con, common.jsonToString({
+              'type': 'message',
+              'content': globalConf['room']['serverMsg']
+            }));
+            callback();
+          }],
           'send_room_welcome_msg': ['send_announcement', function(callback){
             // TODO: use cmd channal
             // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
             //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
             //             '如果您在使用中有任何疑问，'+
             //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
-            // BUG: use con will send msg into msgSocket, not cmdSocket
             // room.notify(con, send_msg);
             if (room.options.welcomemsg.length) {
               room.socket.sendData(con, common.jsonToString({
-                content: room.options.welcomemsg + '\n'
+                'type': 'message',
+                'content': room.options.welcomemsg + '\n'
               }));
             }
+            callback();
+          }],
+          'hook_to_radio': ['send_room_welcome_msg', function(callback){
+            room.radio.addClient(con);
+            callback();
           }]
         });
 
@@ -418,9 +430,13 @@ function Room(options) {
               room.router.message(client, obj);
             break;
             case 'data': // fall-through
-            case 'message': // fall-through
+            case 'message':
+              if(client['anonymous_login'] === true){
+                room.radio.write(datapack, client);
+              }
+              break;
             default:
-              room.radio.write(datapack, client);
+              // ignore other unknown types
             break;
           }
         }

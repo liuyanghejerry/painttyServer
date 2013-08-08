@@ -272,6 +272,14 @@ Radio.prototype.addClient = function(cli) {
   return this;
 };
 
+Radio.prototype.dataLength = function() {
+  if (this.lastPos) {
+    return this.lastPos;
+  }else{
+    return 0;
+  }
+};
+
 Radio.prototype.prune = function() {
   var self = this;
   async.series([

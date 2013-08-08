@@ -75,6 +75,7 @@ function RoomManager(options) {
           list.push(r);
         });
         ret['response'] = 'roomlist';
+        ret['type'] = 'manager';
         ret['roomlist'] = list;
         ret['result'] = true;
         logger.log(ret);
@@ -93,6 +94,7 @@ function RoomManager(options) {
         if (!infoObj) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 200
           };
@@ -107,6 +109,7 @@ function RoomManager(options) {
           if (r_self.roomInfos.length > r_self.op.maxRoom) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 210
             };
@@ -121,6 +124,7 @@ function RoomManager(options) {
         if (!infoObj['name']) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 203
           };
@@ -133,6 +137,7 @@ function RoomManager(options) {
         if (!name) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 203
           };
@@ -144,6 +149,7 @@ function RoomManager(options) {
         if (r_self.roomInfos[name]) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 202
           };
@@ -159,6 +165,7 @@ function RoomManager(options) {
           if (maxLoad < 0 || maxLoad > 17) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 204
             };
@@ -170,6 +177,7 @@ function RoomManager(options) {
         } else {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 204
           };
@@ -184,6 +192,7 @@ function RoomManager(options) {
           if (!_.isString(infoObj['welcomemsg'])) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 205
             };
@@ -196,6 +205,7 @@ function RoomManager(options) {
           if (welcomemsg.length > 40) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 205
             };
@@ -213,6 +223,7 @@ function RoomManager(options) {
           if (!_.isString(infoObj['password'])) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 207
             };
@@ -225,6 +236,7 @@ function RoomManager(options) {
           if (password.length > 16) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 207
             };
@@ -242,6 +254,7 @@ function RoomManager(options) {
           if (!_.isBoolean(infoObj['emptyclose'])) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 207
             };
@@ -260,6 +273,7 @@ function RoomManager(options) {
           if (!_.isObject(infoObj['size'])) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 211
             };
@@ -275,6 +289,7 @@ function RoomManager(options) {
           if (!canvasWidth || !canvasHeight) {
             var ret = {
               response: 'newroom',
+              type: 'manager',
               result: false,
               errcode: 211
             };
@@ -290,6 +305,7 @@ function RoomManager(options) {
         } else {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 211
           };
@@ -304,6 +320,7 @@ function RoomManager(options) {
         if(toobusy()) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: false,
             errcode: 201
           };
@@ -328,6 +345,7 @@ function RoomManager(options) {
         room.on('create', function(info) {
           var ret = {
             response: 'newroom',
+            type: 'manager',
             result: true,
             'info': {
               port: info['port'],
@@ -365,8 +383,7 @@ function RoomManager(options) {
              'permanent': room['options']['permanent'],
              'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
              'key': info['key'],
-             'dataFile': room['dataFile'],
-             'msgFile': room['msgFile'],
+             'archive': room['archive'],
              'localId': r_self.op.localId
           };
 
@@ -474,8 +491,7 @@ function RoomManager(options) {
               'expiration': element.expiration, // 72 hours to close itself
               'permanent': element.permanent,
               'lastCheckoutTimestamp': element.checkoutTimestamp,
-              'dataFile': element.dataFile,
-              'msgFile': element.msgFile,
+              'archive': element.archive,
               'recovery': true
             });
 

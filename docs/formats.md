@@ -109,14 +109,14 @@ painttyServer:
 				maxload: 5,
 				private: true,
 				serveraddress: "192.168.1.104",
-				cmdport: 310
+				port: 310
 			},{
 				name: 'bliblibli',
 				currentload: 2,
 				maxload: 5,
 				private: false,
 				serveraddress: "192.168.1.104",
-				cmdport: 8086,
+				port: 8086,
 			}
 		]
 	}
