@@ -129,9 +129,8 @@ function SocketServer(options) {
   net.Server.call(this);
   
   var defaultOptions = {
-    compressed: true,
-    keepAlive: true,
-    indebug: false
+    compressed: false,
+    keepAlive: true
   };
   
   if(_.isUndefined(options)) {
@@ -198,6 +197,9 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendData = function (cli, data, fn) {
   var server = this;
+  if( _.isString(data) ){
+    data = new Buffer(data);
+  }
   if(server.options.compressed === true){
     common.qCompress(data, function(d) {
       var tmpData = new Buffer(1);

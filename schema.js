@@ -18,8 +18,8 @@ var roomSchema = mongoose.Schema({
     initTimestamp: Number,
     checkoutTimestamp: Number,
     key: String,
-    dataFile: String,
-    msgFile: String,
+    archive: String,
+    port: Number,
     // Notice, localId is not a real part of Room. 
     // Instead, it represents which Child proceess owns it.
     // Designed for easy querying.

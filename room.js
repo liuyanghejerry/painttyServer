@@ -7,7 +7,6 @@ var Buffers = require('buffers');
 var _ = require('underscore');
 var async = require('async');
 var toobusy = require('toobusy');
-var bw = require("buffered-writer");
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
 var Radio = require('./radio.js');
@@ -41,6 +40,7 @@ function Room(options) {
     self.salt = '';
     self.key = '';
     self.archive = '';
+    self.port = 0;
   };
 
   if (_.isUndefined(options)) {
@@ -441,7 +441,7 @@ function Room(options) {
           }
         }
       }).on('listening', callback);
-      room.socket.listen(0, '::');
+      room.socket.listen(room.options.port, '::');
     }]
   }, function(er){
     if (er) {

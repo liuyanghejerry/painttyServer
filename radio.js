@@ -320,8 +320,11 @@ Radio.prototype.cleanup = function() {
   this.clients = null;
   var self = this;
   if (this.writeBufferedFile) {
-    this.writeBufferedFile.cleanup();
-    this.writeBufferedFile = null;
+    // ensure data is written
+    this.writeBufferedFile.writeToDisk(function(){
+      this.writeBufferedFile.cleanup();
+      this.writeBufferedFile = null;
+    });
   }
   this.removeAllListeners();
 };

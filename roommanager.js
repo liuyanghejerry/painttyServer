@@ -384,6 +384,7 @@ function RoomManager(options) {
              'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
              'key': info['key'],
              'archive': room['archive'],
+             'port': room.port(),
              'localId': r_self.op.localId
           };
 
@@ -492,6 +493,7 @@ function RoomManager(options) {
               'permanent': element.permanent,
               'lastCheckoutTimestamp': element.checkoutTimestamp,
               'archive': element.archive,
+              'port': element.port,
               'recovery': true
             });
 
