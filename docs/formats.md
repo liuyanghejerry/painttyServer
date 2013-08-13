@@ -48,10 +48,10 @@ Up to now, only 3 bits is used as follow:
 
 * Bit 0: To identify whether the Json file is compressed.
 * Bits 1-2: To identify what the package type is.
-  * `00` for `command`
-  * `01` for `data`
-  * `10` for `message`
-  * Alternatively, treat as number, larger than 0 means it should be broadcast to whole Room and not to  parser it. And if the lower bit is `1`, it should be saved to archive file.
+  * `00` for `manager`
+  * `01` for `command`
+  * `10` for `data`
+  * `11` for `message`
 * Bits 3-7: reserved for future use.
 
 ## Json file
@@ -80,7 +80,7 @@ Possible value for `platform`:
 * windows x64;
 * mac;
 
-These platform may support in future without guarantee:
+These platform may be supported in future without guarantee:
 
 * linux x86;
 * linux x64;
