@@ -24,9 +24,35 @@ Even though the network today is quite fast today, TCP sockets may recieve data 
 
 In paintty, we use the simple tridational but powerful way to handle this: size header.
 
-Like compressing we did, each block of data will be prepended a 4 bytes header, represented how long the data is, and one byte for other low level imformation. Up to now, only 1 bit is used to identify whether the Json file is compressed.
+Like compression we did, each block of data will be prepended a 4 bytes, size header, represented how long the data is, and one byte, called pack header, for other low level imformation talked in next section.
 
-If you got keen eyes, you may notice this header repeats the compression header. That's true. But since the TCP layer knows nothing about the data structure, it's necessary to do so.
+One more note, eventhough the size can reach about 2GB from the size header, there should never be any package large like that. Currently, 2MB seems a good limit to the package size.
+
+### Pack Header
+
+Up to now, only 3 bits is used as follow:
+
+<table>
+	<tr>
+		<td>0</td>
+		<td>1 - 2</td>
+		<td>3 - 7</td>
+	</tr>
+	<tr>
+		<td>compression</td>
+		<td>package type</td>
+		<td>reserved</td>
+	</tr>
+</table>
+
+
+* Bit 0: To identify whether the Json file is compressed.
+* Bits 1-2: To identify what the package type is.
+  * `00` for `command`
+  * `01` for `data`
+  * `10` for `message`
+  * Alternatively, treat as number, larger than 0 means it should be broadcast to whole Room and not to  parser it. And if the lower bit is `1`, it should be saved to archive file.
+* Bits 3-7: reserved for future use.
 
 ## Json file
 
@@ -92,15 +118,13 @@ To join a room, painttyWidget needs to know where is the room and what are ports
 painttyWidget:
 
 	{
-		request: "roomlist",
-		type: "manager"
+		request: "roomlist"
 	}
 
 painttyServer:
 
 	{
 		response: "roomlist",
-		type: "manager",
 		result: true,
 		roomlist: [
 			{
@@ -125,7 +149,6 @@ or jsut:
 
 	{
 		response: "roomlist",
-		type: "command",
 		result: false
 	}
 
@@ -135,7 +158,6 @@ painttyWidget:
 
 	{
 		request: "newroom",
-		type: "manager",
 		info: {
 			name: "",
 			maxload: 8,
@@ -153,7 +175,6 @@ painttyServer:
 
 	{
 		response: "newroom",
-		type: "manager",
 		result: true,
 		info: {
 			port: 20391,
@@ -165,7 +186,6 @@ painttyServer:
 
 	{
 		response: "newroom",
-		type: "manager",
 		result: false,
 		errcode: 200
 	}
@@ -201,7 +221,6 @@ Login without password:
 
 	{
 		request: "login",
-		type: "command",
 		password: "",
 		name: "someone"
 	}
@@ -211,7 +230,6 @@ Login with password:
 
 	{
 		request: "login",
-		type: "command",
 		password: "123456",
 		name: "someone"
 	}
@@ -222,7 +240,6 @@ Notice, `password` is a String, not integer or others.
 
 	{
 		response: "login",
-		type: "command",
 		result: true,
 		info: {
 			historysize: 10240,
@@ -240,7 +257,6 @@ Notice, `password` is a String, not integer or others.
 
 	{
 		response: "login",
-		type: "command",
 		result: false,
 		errcode: 300
 	}
@@ -268,7 +284,6 @@ client sends:
 
 	{
 		request: 'checkout',
-		type: "command",
 		key: ''
 	}
 	
@@ -276,7 +291,6 @@ server returns:
 
 	{
 		response: 'checkout',
-		type: "command",
 		result: true,
 		cycle: 72
 	}
@@ -287,7 +301,6 @@ Failure return:
 
 	{
 		response: 'checkout',
-		type: "command",
 		result: false,
 		errcode: 700
 	}
@@ -304,7 +317,6 @@ client sends:
 
 	{
 		request: "close",
-		type: "command",
 		key: ""
 	}
 	
@@ -312,7 +324,6 @@ server returns:
 
 	{
 		response: "close",
-		type: "command",
 		result: true
 	}
 
@@ -320,7 +331,6 @@ or
 	
 	{
 		response: "close",
-		type: "command",
 		result: false
 	}
 
@@ -330,7 +340,6 @@ Besides, server will send a message via cmdSocket, telling every client to exit 
 
 	{
 		action: 'close',
-		type: "command",
 		info: {
 			reason: 501
 		}
@@ -349,7 +358,6 @@ To clear all layers, room owner need to send such message:
 
 	{
 		request: 'clearall',
-		type: "command",
 		key: ''
 	}
 	
@@ -357,7 +365,6 @@ Then server may return a message contains a result:
 
 	{
 		response: 'clearall',
-		type: "command",
 		result: true
 	}
 
@@ -365,7 +372,6 @@ Like close room, the only reason for a failed request from server is that the ow
 
 	{
 		response: 'clearall',
-		type: "command",
 		result: false
 	}
 	
@@ -379,7 +385,6 @@ Query online members in room is fairly simple as sending a request.
 
 	{
 		request: 'onlinelist',
-		type: "command",
 		clientid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1'
 	}
 
@@ -387,7 +392,6 @@ And server may return:
 
 	{
 		response: 'onlinelist',
-		type: "command",
 		result: true,
 		onlinelist: [
 			{
@@ -403,7 +407,6 @@ Or if any error:
 
 	{
 		response: 'onlinelist',
-		type: "command",
 		result: false,
 		errcode: 600
 	}
@@ -419,7 +422,6 @@ Notification is message sent by server. Thus, notification can only be received 
 
 	{
 		action: 'notify',
-		type: "command",
 		content: '<span style="color: red">hello, I am server.</span>'
 	}
 
@@ -431,7 +433,6 @@ Notice, notification IS HTML.
 
 	{
 		action: "drawpoint",
-		type: "data",
 		info: {
 			point: {
 				x: 10,
@@ -459,7 +460,6 @@ Note, `pressure` as a real number, should always be a double.
 	
 	{
 		action: "drawline",
-		type: "data",
 		info: {
 			start: {
 				x: 100,
@@ -497,11 +497,9 @@ Example:
 
 	{
 		action: "block",
-		type: "data",
 		block: [
 			{
 				action: "drawpoint",
-				type: "data",
 				info: {
 					point: {
 						x: 10,
@@ -524,7 +522,6 @@ Example:
 			},
 			{
 				action: "drawline",
-				type: "data",
 				info: {
 					start: {
 						x: 100,
@@ -551,7 +548,6 @@ Example:
 			},
 			{
 				action: "drawline",
-				type: "data",
 				info: {
 					start: {
 						x: 107,
@@ -584,7 +580,6 @@ Note, blocks should never contains blocks.
 #### Text Message
 
 	{
-		type: "message",
 		from: "",
 		to: "",
 		content: ""
