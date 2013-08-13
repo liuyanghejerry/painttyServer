@@ -1,5 +1,6 @@
 var util = require("util");
 var net = require('net-cluster');
+var async = require('async');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
@@ -34,7 +35,6 @@ function protocolPack(data) {
   var len = data.length;
   var c1, c2, c3, c4;
   var tmp = new Buffer(4);
-  // tmp["position_protocolPack"] = "protocolPack";
   c1 = len & 0xFF;
   len >>= 8;
   c2 = len & 0xFF;
@@ -51,6 +51,34 @@ function protocolPack(data) {
   data = null;
   return packed;
 };
+
+function bufferToPack(data, compressed, fn) {
+  async.auto({
+    'compress_data': function(callback){
+      if (compressed) {
+        common.qCompress(data, function(d) {
+          data = d;
+          callback();
+        });
+      }else{
+        callback();
+      }
+    },
+    'add_flag': ['compress_data', function(callback){
+      var tmpData = new Buffer(1);
+      tmpData[0] = compressed ? 0x1 : 0x0;
+      data = Buffer.concat([tmpData, data]);
+      data = protocolPack(data);
+      callback();
+    }]
+  }, function(err){
+    if (err) {
+      logger.error(err);
+    }else{
+      fn(data);
+    }
+  });
+}
 
 StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
   var stream_protocol = this;
@@ -129,7 +157,7 @@ function SocketServer(options) {
   net.Server.call(this);
   
   var defaultOptions = {
-    compressed: false,
+    compressed: true,
     keepAlive: true
   };
   
@@ -200,31 +228,15 @@ SocketServer.prototype.sendData = function (cli, data, fn) {
   if( _.isString(data) ){
     data = new Buffer(data);
   }
-  if(server.options.compressed === true){
-    common.qCompress(data, function(d) {
-      var tmpData = new Buffer(1);
-      tmpData[0] = 0x1;
-      var r_data = Buffer.concat([tmpData, d]);
-      if ( _.isFunction(fn) ) {
-        cli.write( protocolPack(r_data), fn );
-      }else{
-        cli.write( protocolPack(r_data) );
-      }
-      tmpData = null;
-      d = null;
-      r_data = null;
-    });
-    data = null;
-  }else{
-    var tmpData = new Buffer(1);
-    tmpData[0] = 0x0;
-    var r_data = Buffer.concat([tmpData, data]);
+
+  bufferToPack(data, server.options.compressed, function(d){
+    data = d;
     if ( _.isFunction(fn) ) {
-      cli.write( protocolPack(r_data), fn );
+      cli.write(data, fn);
     }else{
-      cli.write( protocolPack(r_data) );
+      cli.write(data);
     }
-  }
+  });
 };
 
 SocketServer.prototype.broadcastData = function (data) {
@@ -241,3 +253,7 @@ SocketServer.prototype.kick = function(cli) {
 
 exports.SocketServer = SocketServer;
 exports.StreamedSocketProtocol = StreamedSocketProtocol;
+exports.util = {
+  'protocolPack': protocolPack,
+  'bufferToPack': bufferToPack
+};

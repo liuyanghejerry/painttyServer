@@ -1,8 +1,6 @@
 var events = require('events');
 var fs = require('fs');
 var util = require("util");
-var Writable = require('stream').Writable;
-var Buffers = require('buffers');
 var _ = require('underscore');
 var async = require('async');
 var common = require('./common.js');
@@ -17,6 +15,10 @@ var SEND_INTERVAL = 800; // check pending list every 800ms to send new items
 function RadioChunk(start, length) {
   this.start = start;
   this.chunkSize = length;
+}
+
+function RadioRAMChunk(buf) {
+  this.buffer = buf;
 }
 
 function Radio(options) {
@@ -97,27 +99,49 @@ function split_chunk (chunk) {
 function push_large_chunk (chunk, queue) {
   var new_items = split_chunk(chunk);
   var new_queue = queue.concat(new_items);
-  // logger.trace('queue: ', queue, 'new_queue: ', new_queue);
   return new_queue;
 }
 
+function push_ram_chunk (chunk, queue) {
+  // re-split chunk in ram won't save any memory, so just make it in queue
+  queue.push(chunk);
+  return queue;
+}
+
 function appendToPendings(chunk, list) {
-  
   if (list.length > 0) {
     var bottomItem = list.pop();
-    // try to merge new chunk into old chunk
-    var new_length = bottomItem['chunkSize'] + chunk.chunkSize;
-    if (bottomItem['start'] + bottomItem['chunkSize'] == chunk.start) { // if two chunks are neighbor
-      // concat two chunks and re-split them
-      list = push_large_chunk(new RadioChunk(bottomItem['start'], new_length), list);
-    }else{ // or just push those in
-      list.push(bottomItem); // push the old chunk back
-      list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list); // and new one
+    if(bottomItem instanceof RadioChunk){
+      // try to merge new chunk into old chunk
+      var new_length = bottomItem['chunkSize'] + chunk.chunkSize;
+      if (bottomItem['start'] + bottomItem['chunkSize'] == chunk.start) { // if two chunks are neighbor
+        // concat two chunks and re-split them
+        list = push_large_chunk(new RadioChunk(bottomItem['start'], new_length), list);
+      }else{ // or just push those in
+        list.push(bottomItem); // push the old chunk back
+        list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list); // and new one
+      }
+    }else{
+      // special RadioRAMChunk should be considered
+      // TODO: merge RadioRAMChunk if possible
+      list.push(bottomItem); // put it back, since we don't merge anything now
+      if (chunk instanceof RadioChunk) {
+        list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list);
+      }else{
+        // oops, it's another RadioRAMChunk
+        list = push_ram_chunk(chunk, list);
+      }
     }
   }else{
-    list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list);
+    if (chunk instanceof RadioChunk) {
+      list = push_large_chunk(new RadioChunk(chunk.start, chunk.chunkSize), list);
+    }else{
+      list = push_ram_chunk(chunk, list);
+    }
     // NOTE: we don't have to trigger queue process. It will handled in 'drain' event of Client.
   }
+
+  chunk = null;
 
   if (list.length >= MAX_CHUNKS_IN_QUEUE*2) {
     // TODO: add another function to re-split chunks in queue
@@ -127,6 +151,9 @@ function appendToPendings(chunk, list) {
 }
 
 Radio.prototype.write = function(datachunk, source) {
+  if ( _.isString(datachunk) ) {
+    datachunk = new Buffer(datachunk);
+  }
   if(this.writeBufferedFile) {
     var r = this;
 
@@ -149,25 +176,51 @@ Radio.prototype.write = function(datachunk, source) {
   }else{
     logger.error('Radio commanded to write without stream attached');
   }
+  datachunk = null;
+};
+
+Radio.prototype.singleWrite = function(datachunk, destSocket) {
+  if ( _.isString(datachunk) ) {
+    datachunk = new Buffer(datachunk);
+  }
+  if(this.writeBufferedFile) {
+    var r = this;
+
+    r.writeBufferedFile.append(datachunk, function() {
+      destSocket.pendingList = appendToPendings(new RadioRAMChunk(datachunk), destSocket.pendingList);
+      datachunk = null;
+    });
+    
+  }else{
+    logger.error('Radio commanded to write without stream attached');
+  }
+  datachunk = null;
 };
 
 function fetch_and_send(list, bufferedfile, client, ok) {
   if (list && list.length > 0 && ok && _.isFunction(ok)) {
-    var item = _.first(list);
+    var item = list[0];
     list.shift();
 
-    bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
-      if (datachunk.length == item['chunkSize']) {
-        var isIdel = client.write(datachunk, function(){
-          // logger.debug(datachunk);
-          ok(isIdel);
-        });
-      }else{
-        // fetch failed, should schedual another try
-        list.unshift(item);
-        ok(false);
-      }
-    });
+    if(item instanceof RadioChunk){
+      bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
+        if (datachunk.length == item['chunkSize']) {
+          var isIdel = client.write(datachunk, function(){
+            // logger.debug(datachunk);
+            ok(isIdel);
+          });
+        }else{
+          // fetch failed, should schedual another try
+          list.unshift(item);
+          ok(false);
+        }
+      });
+    }else{
+      // take care of RadioRAMChunk
+      var isIdel = client.write(item['buffer'], function() {
+        ok(isIdel);
+      });
+    }
   }
   ok(false);
 }
@@ -180,6 +233,7 @@ Radio.prototype.addClient = function(cli) {
     var c = cli;
     if (c && c.pendingList && c.pendingList.length > 0) {
       // send chunks one by one in pendingList
+      logger.trace('queue:', c.pendingList);
       
       var should_next = true;
       async.whilst(
@@ -278,6 +332,10 @@ Radio.prototype.dataLength = function() {
   }else{
     return 0;
   }
+};
+
+Radio.prototype.isSocketInRadio = function(cli) {
+  return this.clients.indexOf(cli) >= 0;
 };
 
 Radio.prototype.prune = function() {

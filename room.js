@@ -154,8 +154,7 @@ function Room(options) {
             errcode: 301
           };
           logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);
           return;
         }
         // password check
@@ -168,8 +167,7 @@ function Room(options) {
               errcode: 302
             };
             logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            r_room.socket.sendData(cli, new Buffer(jsString));
+            r_room.send_to_socket(cli, ret);
             return;
           }
         }
@@ -183,8 +181,7 @@ function Room(options) {
             errcode: 305
           };
           logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);
           return;
         };
         // send info
@@ -207,11 +204,9 @@ function Room(options) {
           }
         };
         logger.log(ret);
-        var jsString = common.jsonToString(ret);
-        r_room.socket.sendData(cli, new Buffer(jsString));
+        r_room.send_to_socket(cli, ret);
 
         cli['username'] = obj['name'];
-        cli['anonymous_login'] = true;
         cli.emit('login');
         return;
       },
@@ -226,8 +221,7 @@ function Room(options) {
             result: false
           };
           logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);;
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             var ret = {
@@ -236,8 +230,7 @@ function Room(options) {
               result: true
             };
             logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            r_room.socket.sendData(cli, new Buffer(jsString));
+            r_room.send_to_socket(cli, ret);
             var ret_all = {
               action: 'close',
               'info': {
@@ -261,8 +254,7 @@ function Room(options) {
             type: 'command',
             result: false
           };
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             r_room.radio.dataRadio.prune();
@@ -271,8 +263,7 @@ function Room(options) {
               type: 'command',
               result: true
             };
-            var jsString = common.jsonToString(ret);
-            r_room.socket.sendData(cli, new Buffer(jsString));
+            r_room.send_to_socket(cli, ret);
             var ret_all = {
               action: 'clearall',
             };
@@ -284,8 +275,7 @@ function Room(options) {
               type: 'command',
               result: false
             };
-            var jsString = common.jsonToString(ret);
-            r_room.socket.sendData(cli, new Buffer(jsString));
+            r_room.send_to_socket(cli, ret);
           }
         }
       },
@@ -323,8 +313,7 @@ function Room(options) {
           onlinelist: people
         };
         logger.log(ret);
-        var jsString = common.jsonToString(ret);
-        r_room.socket.sendData(cli, new Buffer(jsString));
+        r_room.send_to_socket(cli, ret);
       },
       room).reg('request', 'checkout',
       function(cli, obj) {
@@ -337,8 +326,7 @@ function Room(options) {
             errcode: 701
           };
           logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);
         }
         if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
           r_room.options.lastCheckoutTimestamp = Date.now();
@@ -350,8 +338,7 @@ function Room(options) {
             cycle: r_room.options.expiration ? r_room.options.expiration: 0
           };
           logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          r_room.socket.sendData(cli, new Buffer(jsString));
+          r_room.send_to_socket(cli, ret);
         }
       },
       room);
@@ -376,13 +363,18 @@ function Room(options) {
             callback();
           },
           'wait_login': function(callback){
-            con.once('login', callback);
+            con.once('login', function(){
+              con['anonymous_login'] = true;
+              callback();
+            });
           },
           'send_announcement': ['wait_login', function(callback){
-            room.socket.sendData(con, common.jsonToString({
+            var ret = {
               'type': 'message',
               'content': globalConf['room']['serverMsg']
-            }));
+            };
+            // NOTICE: don't use send_to_socket, since the client is not added to radio yet.
+            room.socket.sendData(con, common.jsonToString(ret));
             callback();
           }],
           'send_room_welcome_msg': ['send_announcement', function(callback){
@@ -393,10 +385,12 @@ function Room(options) {
             //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
             // room.notify(con, send_msg);
             if (room.options.welcomemsg.length) {
-              room.socket.sendData(con, common.jsonToString({
+              var ret = {
                 'type': 'message',
                 'content': room.options.welcomemsg + '\n'
-              }));
+              };
+              // NOTICE: don't use send_to_socket, since the client is not added to radio yet.
+              room.socket.sendData(con, common.jsonToString(ret));
             }
             callback();
           }],
@@ -494,6 +488,20 @@ Room.prototype.port = function() {
   return this.socket.address().port;
 };
 
+Room.prototype.send_to_socket = function (socket_ref, obj) {
+  var room_ref = this;
+  var jsString = common.jsonToString(obj);
+  if(socket_ref['anonymous_login'] === true){
+    // FIXME: should package data before send it
+    socket.util.bufferToPack(new Buffer(jsString), true, function(d){
+      room_ref.radio.singleWrite(d, socket_ref);
+    });
+    
+  }else{
+    room_ref.socket.sendData(socket_ref, new Buffer(jsString));
+  }
+}
+
 Room.prototype.close = function() {
   var self = this;
   if (self.status == 'closed') {
@@ -568,7 +576,8 @@ Room.prototype.notify = function(con, content) {
     action: 'notify',
     'content': content
   };
-  self.socket.sendData(con, common.jsonToString(sendContent));
+
+  self.send_to_socket(con, sendContent);
   logger.debug('socket: ', self.socket, sendContent);
 };
 
