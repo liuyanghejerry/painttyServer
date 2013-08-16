@@ -5,31 +5,21 @@ var Buffers = require('buffers');
 var _ = require('underscore');
 var common = require('./common.js');
 var Writable = require('stream').Writable;
+var Radio = require('./radio.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 
-function StreamedSocketProtocol(options) {
-  if (!(this instanceof StreamedSocketProtocol))
-    return new StreamedSocketProtocol(options);
+function SocketReadAdapter(options) {
+  if (!(this instanceof SocketReadAdapter))
+    return new SocketReadAdapter(options);
 
   Writable.call(this, options);
 
-  var defaultOptions = {
-    client: null
-  };
-  
-  if(_.isUndefined(options)) {
-    var options = {};
-  }
-  var op = _.defaults(options, defaultOptions);
-
-  this._options = op;
-  this._client = op.client;
   this._buf = new Buffers();
   this._dataSize = 0;
 }
 
-util.inherits(StreamedSocketProtocol, Writable);
+util.inherits(SocketReadAdapter, Writable);
 
 function protocolPack(data) {
   var len = data.length;
@@ -52,10 +42,11 @@ function protocolPack(data) {
   return packed;
 };
 
-function bufferToPack(data, compressed, fn) {
+
+function bufferToPack(data, header, fn) {
   async.auto({
     'compress_data': function(callback){
-      if (compressed) {
+      if (header['compress']) {
         common.qCompress(data, function(d) {
           data = d;
           callback();
@@ -66,7 +57,7 @@ function bufferToPack(data, compressed, fn) {
     },
     'add_flag': ['compress_data', function(callback){
       var tmpData = new Buffer(1);
-      tmpData[0] = compressed ? 0x1 : 0x0;
+      tmpData[0] = (header['compress'] & 0x1) | (header['pack_type'] & SocketClient.PACK_TYPE['MASK']);
       data = Buffer.concat([tmpData, data]);
       data = protocolPack(data);
       callback();
@@ -80,12 +71,12 @@ function bufferToPack(data, compressed, fn) {
   });
 }
 
-StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
-  var stream_protocol = this;
-  stream_protocol._buf.push(chunk);
+SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
+  var adapter = this;
+  adapter._buf.push(chunk);
   
   function GETPACKAGESIZEFROMDATA() {
-    var pg_size_array = stream_protocol._buf.splice(0, 4);
+    var pg_size_array = adapter._buf.splice(0, 4);
     pg_size_array = pg_size_array.toBuffer();
     var pg_size = (pg_size_array[0] << 24) 
                 + (pg_size_array[1] << 16) 
@@ -96,7 +87,7 @@ StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
   }
   
   function READRAWBYTES(size) {
-    var data = stream_protocol._buf.splice(0, size);
+    var data = adapter._buf.splice(0, size);
     data = data.toBuffer();
     return data;
   }
@@ -106,58 +97,217 @@ StreamedSocketProtocol.prototype._write = function(chunk, encoding, done) {
   }
   
   function GETFLAG(pkgData) {
-    return pkgData[0] === 0x1;
+    var ret = {};
+    ret['compress'] = pkgData[0] & 0x1;
+    ret['pack_type'] = (pkgData[0] >> 0x1) & SocketClient.PACK_TYPE['MASK'];
+    return ret;
   }
   
   while (true) {
-    if(stream_protocol._dataSize === 0){
-      if (stream_protocol._buf.length < 4){
+    if(adapter._dataSize === 0){
+      if (adapter._buf.length < 4){
         done();
         return;
       }
-      stream_protocol._dataSize = GETPACKAGESIZEFROMDATA();
+      adapter._dataSize = GETPACKAGESIZEFROMDATA();
     }
-    if (stream_protocol._buf.length < stream_protocol._dataSize){
+    if (adapter._buf.length < adapter._dataSize){
       done();
       return;
     }
 
 
-    var packageData = READRAWBYTES(stream_protocol._dataSize);
-    var isCompressed = GETFLAG(packageData);
-    var dataBlock = packageData.slice(1);
-    
-    var repacked = REBUILD(packageData);
-    if(isCompressed) {
+    var packageData = READRAWBYTES(adapter._dataSize); // raw single package
+    var p_header = GETFLAG(packageData);  // 8bits header
+    var dataBlock = packageData.slice(1); // dataBlock has no header
+    var repacked = REBUILD(packageData);  // repacked, should be equal with packageData
+
+    if(p_header['compress']) {
       common.qUncompress(dataBlock, function(d, err) {
         if(err){
           logger.error('Uncompress error:', err);
           return;
         }
-        stream_protocol.emit('message', stream_protocol._client, d, repacked);
+        adapter.emit('message', p_header['pack_type'], d, repacked);
       });
     }else{
-      stream_protocol.emit('message', stream_protocol._client, dataBlock, repacked);
+      adapter.emit('message', p_header['pack_type'], dataBlock, repacked);
     }
-    stream_protocol._dataSize = 0;
+    adapter._dataSize = 0;
+    packageData = null;
+    p_header = null;
+    dataBlock = null;
+    repacked = null;
   }
   done();
 };
 
-StreamedSocketProtocol.prototype.cleanup = function() {
+SocketReadAdapter.prototype.cleanup = function() {
   this._buf = null;
-  this._client = null;
-  this._options.client = null;
-  this._options = null;
+  this._dataSize = 0;
   this.removeAllListeners();
 };
+
+function SocketClient(socket) {
+  events.EventEmitter.call(this);
+
+  var client = this;
+  client['socket'] = socket;
+  client['anonymous_login'] = false;
+  client['adapter'] = null;
+  client['status'] = SocketClient.CLIENT_STATUS['INIT'];
+  client['clientid'] = null;
+  client['username'] = null;
+
+  client.socket.on('close', function(){
+    // no more output
+    client.socket.unpipe();
+
+    // time to destroy associated stream
+    if (client['adapter']) {
+      client['adapter'].cleanup();
+      client['adapter'] = null;
+    }
+    client.socket.removeAllListeners('message');
+    client.socket.removeAllListeners('drain');
+    process.nextTick(function(){
+      client.emit('close');
+    });
+  });
+
+  client.adapter = new SocketReadAdapter();
+  client.socket.pipe(client.adapter);
+
+  client.adapter.on('message', function(pack_type, data, rawData){
+    var PT = SocketClient.PACK_TYPE;
+    switch(pack_type){
+      case PT['MANAGER']:
+      client.emit('manager', data);
+      break;
+      case PT['COMMAND']:
+      client.emit('command', data);
+      break;
+      case PT['DATA']:
+      client.emit('data', rawData);
+      break;
+      case PT['MESSAGE']:
+      client.emit('message', rawData);
+      break;
+      default:
+      // just do nothing
+      logger.warn('unknown pack type', pack_type);
+      break;
+    }
+  });
+}
+
+SocketClient.prototype.PACK_TYPE = {
+  'MANAGER': 0x0
+  'COMMAND': 0x1,
+  'DATA': 0x2,
+  'MESSAGE': 0x3,
+  'MASK': 0x3 // sepcial one, not really one of type but just a bit mask
+};
+
+SocketClient.prototype.CLIENT_STATUS = {
+  'INIT': 0,
+  'RUNNING': 1,
+  'CLOSED': 2,
+  'DESTROYED': 3
+};
+
+util.inherits(SocketClient, events.EventEmitter);
+
+SocketClient.prototype.writeRaw = function(data, fn) {
+  try {
+    this.socket.write(data, fn);
+  }catch(err){
+    //
+  }
+}
+
+SocketClient.prototype.sendPack = function(data, fn) {
+  this.socket.writeRaw(protocolPack(data), fn);
+}
+
+SocketClient.prototype.sendDataPack = function(data, fn) {
+  var socket_client = this;
+  bufferToPack(
+    data, 
+    {
+      'compress': true, 
+      'pack_type': SocketClient.PACK_TYPE['DATA']
+    }, function(result){
+      socket_client.sendPack(result, fn);
+  });
+}
+
+SocketClient.prototype.sendMessagePack = function(data, fn) {
+  var socket_client = this;
+  bufferToPack(
+    data, 
+    {
+      'compress': true, 
+      'pack_type': SocketClient.PACK_TYPE['MESSAGE']
+    }, function(result){
+      socket_client.sendPack(result, fn);
+  });
+}
+
+SocketClient.prototype.sendCommandPack = function(data, fn) {
+  var socket_client = this;
+  bufferToPack(
+    data, 
+    {
+      'compress': true, 
+      'pack_type': SocketClient.PACK_TYPE['COMMAND']
+    }, function(result){
+      socket_client.sendPack(result, fn);
+  });
+}
+
+SocketClient.prototype.sendManagerPack = function(data, fn) {
+  var socket_client = this;
+  bufferToPack(
+    data, 
+    {
+      'compress': true, 
+      'pack_type': SocketClient.PACK_TYPE['MANAGER']
+    }, function(result){
+      socket_client.sendPack(result, fn);
+  });
+}
+
+SocketClient.prototype.close = function() {
+  var self = this;
+  try {
+    self.socket.close();
+    self.status = SocketClient.CLIENT_STATUS['CLOSED'];
+    process.nextTick(function(){
+      self.emit('close');
+    });
+  }catch(err){
+    //
+  }
+}
+
+SocketClient.prototype.destroy = function() {
+  this.socket = null;
+  this.anonymous_login = false;
+  this.adapter = null;
+  this.status = SocketClient.CLIENT_STATUS['DESTROYED'];
+  this.removeAllListeners();
+}
+
 
 
 function SocketServer(options) {
   net.Server.call(this);
   
   var defaultOptions = {
-    compressed: true,
+    archive: 'tmp.tmp',
+    recovery: false,
+    record: true,
     keepAlive: true
   };
   
@@ -170,51 +320,65 @@ function SocketServer(options) {
   server.options = op;
   server.clients = [];
   server.nullDevice = common.nullDevice;
+  server.radio = null;
 
-  function onClientExit(cli) {
-    // no more output
-    cli.unpipe();
-    
-    // erase from client list
-    var index = server.clients.indexOf(cli);
-    server.clients.splice(index, 1);
-
-    // time to destroy associated stream
-    if (cli['stream_parser']) {
-      cli['stream_parser'].cleanup();
-      delete cli['stream_parser'];
-    }
-    cli.removeAllListeners('message');
-    cli.removeAllListeners('drain');
+  if (op.record) {
+    server.radio = new Radio({
+      'filename': server.options['archive'], 
+      'recovery': server.options['recovery']
+    });
+    server.radio.once('ready', function(){
+      process.nextTick(function(){
+        server.emit('ready');
+      });
+    });
+  }else{
+    process.nextTick(function(){
+      server.emit('ready');
+    });
   }
 
   server.on('connection', function(cli) {
     cli.setKeepAlive(server.options.keepAlive);
     cli.setNoDelay(true);
-    server.clients.push(cli);
+    var socket_client = new SocketClient(cli);
+    server.clients.push(socket_client);
+
+    socket_client.on('manager', function(data){
+      server.emit('clientmanager', data);
+    });
+    socket_client.on('command', function(data){
+      server.emit('clientcommand', data);
+    });
+    socket_client.on('data', function(rawData){
+      server.emit('clientdata', rawData);
+      server.radio.write(rawData);
+    });
+    socket_client.on('message', function(rawData){
+      server.emit('clientmessage', rawData);
+      server.radio.send(rawData);
+    });
+    socket_client.on('login', function(){
+      server.radio.addClient(socket_client);
+    });
 
     var onclose = function () {
-      onClientExit(cli);
-      cli.destroy();
-    }
+      // erase from client list
+      var index = server.clients.indexOf(socket_client);
+      server.clients.splice(index, 1);
+
+      socket_client.destroy();
+    };
 
     var onerror = function (err) {
       logger.error('Error with socket:', err);
-    }
+    };
 
-    cli.on('error', onerror)
-    .once('close', onclose);
+    socket_client.once('close', onclose);
 
-    cli.stream_parser = new StreamedSocketProtocol({'client': cli});
-
-    var onmessage = function (c, d, o) {
-      server.emit('message', c, d, o);
-      if(c) c.emit('message', c, d, o);
-    }
-
-    cli.stream_parser.on('message', onmessage);
-
-    cli.pipe(cli.stream_parser);
+    process.nextTick(function(){
+      server.emit('newclient', socket_client);
+    });
 
   }).on('error', function(err) {
     logger.error('Error with socket:', err);
@@ -223,36 +387,62 @@ function SocketServer(options) {
 
 util.inherits(SocketServer, net.Server);
 
-SocketServer.prototype.sendData = function (cli, data, fn) {
-  var server = this;
-  if( _.isString(data) ){
-    data = new Buffer(data);
-  }
-
-  bufferToPack(data, server.options.compressed, function(d){
-    data = d;
-    if ( _.isFunction(fn) ) {
-      cli.write(data, fn);
+SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
+  var PT = SocketClient.PACK_TYPE;
+  bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
+    var datapack = protocolPack(data)
+    if ( _.contains(radio.clients, client_ref) && client_ref['anonymous_login'] ) {
+      radio.singleSend(datapack);
     }else{
-      cli.write(data);
+      client_ref.sendPack(datapack);
     }
   });
 };
 
-SocketServer.prototype.broadcastData = function (data) {
+SocketServer.prototype.broadcastData = function (data, pack_type) {
   var server = this;
-  _.each(server.clients, function(cli) {
-    server.sendData(cli, data);
+  // TODO: need to change for new interface of SocketClient
+  var PT = SocketClient.PACK_TYPE;
+  bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
+    var datapack = protocolPack(data)
+    server.radio.send(datapack);
   });
 };
 
-SocketServer.prototype.kick = function(cli) {
-  var server = this;
-  cli.end();
+SocketServer.prototype.kick = function(client_ref) {
+  client_ref.close();
+};
+
+SocketServer.prototype.pruneArchive = function() {
+  var self = this;
+  if (self.radio) {
+    self.radio.prune();
+  }
+};
+
+SocketServer.prototype.archiveLength = function() {
+  var self = this;
+  if (self.radio) {
+    return self.radio.dataLength();
+  }else{
+    return 0;
+  }
+};
+
+SocketServer.prototype.closeServer = function(delete_archive) {
+  var self = this;
+  if (self.radio) {
+    if (delete_archive) {
+      self.radio.removeFile();
+    }
+    self.radio.cleanup();
+    self.radio = null;
+  }
+  self.close();
 };
 
 exports.SocketServer = SocketServer;
-exports.StreamedSocketProtocol = StreamedSocketProtocol;
+exports.SocketReadAdapter = SocketReadAdapter;
 exports.util = {
   'protocolPack': protocolPack,
   'bufferToPack': bufferToPack

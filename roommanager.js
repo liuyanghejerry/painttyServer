@@ -80,7 +80,7 @@ function RoomManager(options) {
         ret['result'] = true;
         logger.log(ret);
         var jsString = common.jsonToString(ret);
-        r_self.pubServer.sendData(cli, new Buffer(jsString));
+        cli.sendManagerPack(new Buffer(jsString));
       },
       self).reg('request', 'join',
       function(cli, obj) {
@@ -100,7 +100,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
 
@@ -115,7 +115,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
         }
@@ -130,7 +130,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         var name = _.isString(infoObj['name']) ? infoObj['name'] : false;
@@ -143,7 +143,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         if (r_self.roomInfos[name]) {
@@ -155,7 +155,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         // name check end
@@ -171,7 +171,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
         } else {
@@ -183,7 +183,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         // maxLoad check end
@@ -198,7 +198,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
           var welcomemsg = infoObj['welcomemsg'];
@@ -211,7 +211,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
         } else {
@@ -229,7 +229,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
           var password = infoObj['password'];
@@ -242,7 +242,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
         } else {
@@ -260,7 +260,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
           var emptyclose = infoObj['emptyclose'];
@@ -279,7 +279,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
           var canvasWidth = parseInt(infoObj['size']['width'], 10);
@@ -295,7 +295,7 @@ function RoomManager(options) {
             };
             logger.log(ret);
             var jsString = common.jsonToString(ret);
-            r_self.pubServer.sendData(cli, new Buffer(jsString));
+            cli.sendManagerPack(new Buffer(jsString));
             return;
           }
           var canvasSize = {
@@ -311,7 +311,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         // canvasSize check end
@@ -326,7 +326,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           return;
         }
         // end of busy check
@@ -354,7 +354,7 @@ function RoomManager(options) {
           };
           logger.log(ret);
           var jsString = common.jsonToString(ret);
-          r_self.pubServer.sendData(cli, new Buffer(jsString));
+          cli.sendManagerPack(new Buffer(jsString));
           r_self.roomObjs[infoObj['name']] = room;
           var infoBlock = {
             port: info['port'],
@@ -433,13 +433,17 @@ function RoomManager(options) {
 
       self.pubServer = new socket.SocketServer();
 
-      self.pubServer.on('listening', function() {
+      self.pubServer.once('listening', function() {
         self._ispubServerConnected = true;
         self.emit('listening');
-      }).on('message', function(client, data) {
-        var obj = common.stringToJson(data);
-        logger.log(obj);
-        self.router.message(client, obj);
+      }).on('newclient', function(client) {
+        client.on('manager', function(data) {
+          var obj = common.stringToJson(data);
+          logger.log(obj);
+          self.router.message(client, obj);
+        });
+      }).once('ready', function(){
+        self.pubServer.listen(self.op.pubPort, '::');
       });
 
       if (cluster.isWorker) {
@@ -549,35 +553,9 @@ function RoomManager(options) {
       process.nextTick(function(){self.emit('ready');});
     }
   });
-
-  // self.regSocket = new net.Socket();
 }
 
 util.inherits(RoomManager, events.EventEmitter);
-
-RoomManager.prototype.start = function() {
-  // TODO
-  // var options = {
-  // hostname: 'dns.mrspaint.com',
-  // port: 80,
-  // path: '/master',
-  // method: 'GET'
-  // };
-  // var req = http.request(options, function(res) {
-  // common.log('Trying to get master address');
-  // common.log('STATUS: ' + res.statusCode);
-  // common.log('HEADERS: ' + common.jsonToString(res.headers));
-  // res.setEncoding('utf8');
-  // res.on('data', function (chunk) {
-  // common.log('BODY: ' + chunk);
-  // });
-  // });
-  // req.on('error', function(e) {
-  // common.log('problem with request: ' + e.message);
-  // });
-  this.pubServer.listen(this.op.pubPort, '::'); // this will support both ipv6 and ipv4 address
-  return this;
-};
 
 RoomManager.prototype.stop = function() {
   var self = this;

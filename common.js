@@ -3,8 +3,6 @@ var zlib = require('zlib');
 var fs = require('fs');
 var util = require("util");
 var Buffers = require('buffers');
-var StringDecoder = require('string_decoder').StringDecoder;
-var decoder = new StringDecoder('utf8');
 var _ = require('underscore');
 var globalConf = require('./config/config.js');
 var logger = require('tracer').dailyfile({root: globalConf['log']['path']});
@@ -55,7 +53,7 @@ exports.stringToJson = function (s) {
     var json = JSON.parse(s);
     return json;
   } catch(e) {
-    logger.error('Error in JSON', e, decoder.write(s));
+    logger.error('Error in JSON', e);
     return {};
   }
 };
@@ -70,7 +68,24 @@ exports.createNullDevice = function () {
 
 exports.readSalt = function() {
   return fs.readFileSync(globalConf['salt']['path']);
-}
+};
+
+exports.ensureDir = function(path, callback) {
+  fs.exists(path, function(exists) {
+    if (!exists) {
+      fs.mkdir(path, function(err){
+        if (err) {
+          logger.error('Error while creating dir: ', err);
+          callback(err);
+        }else{
+          callback();
+        }
+      });
+    }else{
+      callback();
+    }
+  });
+};
 
 exports.logger = logger;
 exports.globalConf = globalConf;

@@ -9,7 +9,6 @@ var async = require('async');
 var toobusy = require('toobusy');
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
-var Radio = require('./radio.js');
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
@@ -33,7 +32,6 @@ function Room(options) {
     self.emptyclose = false;
     self.permanent = true;
     self.expiration = 48; // in hours; 0 for limitless
-    self.log = false; // not really used
     self.recovery = false;
     self.lastCheckoutTimestamp = Date.now();
     // NOTICE: below options are generated in runtime or passed only when recovery
@@ -50,7 +48,6 @@ function Room(options) {
   room.options = op;
   if (!_.isString(op.name) || op.name.length < 1) {
     logger.error('invalid room name');
-    // TODO: throw exception
     return;
   }
 
@@ -106,19 +103,7 @@ function Room(options) {
       callback();
     },
     'ensure_dir': function(callback){
-      fs.exists(globalConf['room']['path'],
-      function(exists) {
-        if (!exists) {
-          fs.mkdir(globalConf['room']['path'], function(err){
-            if (err) {
-              logger.error('Error while creating dir for room: ', err);
-              callback(err);
-            };
-            callback();
-          });
-        }
-        callback();
-      });
+      common.ensureDir(globalConf['room']['path'], callback);
     },
     'gen_fileNames': ['ensure_dir', function(callback){
       if (room.options.recovery === true) {
@@ -132,16 +117,8 @@ function Room(options) {
         } ();
       }
       callback();
-      
     }],
-    'create_radio': ['gen_fileNames', function(callback){
-      room.radio = new Radio({
-        'filename': room.archive,
-        'recovery': room.options.recovery
-      });
-      room.radio.once('ready', callback);
-    }],
-    'install_router': ['create_radio', function(callback){
+    'install_router': ['gen_fileNames', function(callback){
       room.router.reg('request', 'login',
       function(cli, obj) {
         var r_room = room;
@@ -149,12 +126,11 @@ function Room(options) {
         if (!obj['name'] || !_.isString(obj['name'])) {
           var ret = {
             response: 'login',
-            type: 'command',
             result: false,
             errcode: 301
           };
           logger.log(ret);
-          r_room.send_to_socket(cli, ret);
+          cli.sendCommandPack(ret);
           return;
         }
         // password check
@@ -162,12 +138,11 @@ function Room(options) {
           if (!obj['password'] || !_.isString(obj['password']) || obj['password'] != r_room.options.password) {
             var ret = {
               response: 'login',
-              type: 'command',
               result: false,
               errcode: 302
             };
             logger.log(ret);
-            r_room.send_to_socket(cli, ret);
+            r_room.sendCommandTo(cli, ret);
             return;
           }
         }
@@ -176,21 +151,19 @@ function Room(options) {
         if (toobusy()) {
           var ret = {
             response: 'login',
-            type: 'command',
             result: false,
             errcode: 305
           };
           logger.log(ret);
-          r_room.send_to_socket(cli, ret);
+          r_room.sendCommandTo(cli, ret);
           return;
         };
         // send info
         var ret = {
           response: 'login',
-          type: 'command',
           result: true,
           info: {
-            'historysize': r_room.radio.dataLength(),
+            'historysize': r_room.socket.archiveLength(),
             'size': r_room.options.canvasSize,
             'clientid': function() {
               var hash = crypto.createHash('sha1');
@@ -204,7 +177,7 @@ function Room(options) {
           }
         };
         logger.log(ret);
-        r_room.send_to_socket(cli, ret);
+        r_room.sendCommandTo(cli, ret);
 
         cli['username'] = obj['name'];
         cli.emit('login');
@@ -217,20 +190,18 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'close',
-            type: 'command',
             result: false
           };
           logger.log(ret);
-          r_room.send_to_socket(cli, ret);;
+          r_room.sendCommandTo(cli, ret);;
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             var ret = {
               response: 'close',
-              type: 'command',
               result: true
             };
             logger.log(ret);
-            r_room.send_to_socket(cli, ret);
+            r_room.sendCommandTo(cli, ret);
             var ret_all = {
               action: 'close',
               'info': {
@@ -239,7 +210,7 @@ function Room(options) {
             };
             jsString = common.jsonToString(ret_all);
             logger.log(jsString);
-            r_room.socket.broadcastData(new Buffer(jsString));
+            r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
             r_room.options.emptyclose = true;
             r_room.options.permanent = false;
           }
@@ -251,31 +222,28 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'clearall',
-            type: 'command',
             result: false
           };
-          r_room.send_to_socket(cli, ret);
+          r_room.sendCommandTo(cli, ret);
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-            r_room.radio.dataRadio.prune();
+            r_room.socket.pruneArchive();
             var ret = {
               response: 'clearall',
-              type: 'command',
               result: true
             };
-            r_room.send_to_socket(cli, ret);
+            r_room.sendCommandTo(cli, ret);
             var ret_all = {
               action: 'clearall',
             };
             jsString = common.jsonToString(ret_all);
-            r_room.socket.broadcastData(new Buffer(jsString));
+            r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
           } else {
             var ret = {
               response: 'clearall',
-              type: 'command',
               result: false
             };
-            r_room.send_to_socket(cli, ret);
+            r_room.sendCommandTo(cli, ret);
           }
         }
       },
@@ -308,12 +276,11 @@ function Room(options) {
 
         var ret = {
           response: 'onlinelist',
-          type: 'command',
           result: true,
           onlinelist: people
         };
         logger.log(ret);
-        r_room.send_to_socket(cli, ret);
+        r_room.sendCommandTo(cli, ret);
       },
       room).reg('request', 'checkout',
       function(cli, obj) {
@@ -321,34 +288,36 @@ function Room(options) {
         if (!obj['key'] || !_.isString(obj['key'])) {
           var ret = {
             response: 'checkout',
-            type: 'command',
             result: false,
             errcode: 701
           };
           logger.log(ret);
-          r_room.send_to_socket(cli, ret);
+          r_room.socket.sendCommandTo(cli, ret);
         }
         if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
           r_room.options.lastCheckoutTimestamp = Date.now();
           r_room.emit('checkout');
           var ret = {
             response: 'checkout',
-            type: 'command',
             result: true,
             cycle: r_room.options.expiration ? r_room.options.expiration: 0
           };
           logger.log(ret);
-          r_room.send_to_socket(cli, ret);
+          r_room.sendCommandTo(cli, ret);
         }
       },
       room);
       callback();
     }],
-    'init_socket': ['install_router', 'create_radio', function(callback){
-      room.socket = new socket.SocketServer();
-      room.socket.maxConnections = room.options.maxLoad;
-      room.socket.on('connection',
-      function(con) {
+    'init_socket': ['install_router', function(callback){
+      room.socket = new socket.SocketServer({
+        'archive': room.archive,
+        'recovery': room.options.recovery,
+        'record': true
+      });
+      // room.socket.maxConnections = room.options.maxLoad;
+      room.socket.on('newclient',
+      function(client) {
         async.auto({
           'send_to_clusters': function(callback){
             if (cluster.isWorker) {
@@ -363,8 +332,8 @@ function Room(options) {
             callback();
           },
           'wait_login': function(callback){
-            con.once('login', function(){
-              con['anonymous_login'] = true;
+            client.once('login', function(){
+              client['anonymous_login'] = true;
               callback();
             });
           },
@@ -373,8 +342,9 @@ function Room(options) {
               'type': 'message',
               'content': globalConf['room']['serverMsg']
             };
-            // NOTICE: don't use send_to_socket, since the client is not added to radio yet.
-            room.socket.sendData(con, common.jsonToString(ret));
+            // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
+            // room.socket.sendData(con, common.jsonToString(ret));
+            client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             callback();
           }],
           'send_room_welcome_msg': ['send_announcement', function(callback){
@@ -389,18 +359,14 @@ function Room(options) {
                 'type': 'message',
                 'content': room.options.welcomemsg + '\n'
               };
-              // NOTICE: don't use send_to_socket, since the client is not added to radio yet.
-              room.socket.sendData(con, common.jsonToString(ret));
+              // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
+              client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             }
-            callback();
-          }],
-          'hook_to_radio': ['send_room_welcome_msg', function(callback){
-            room.radio.addClient(con);
             callback();
           }]
         });
 
-        con.once('close', function() {
+        client.once('close', function() {
           if (room.options.emptyclose) {
             if (room.currentLoad() < 1) { // when exit, still connected on.
               room.close();
@@ -415,25 +381,10 @@ function Room(options) {
               }
             });
           }
+        }).on('command', function(data) {
+          var obj = common.stringToJson(data);
+          room.router.message(client, obj);
         });
-      }).on('message', function(client, message, datapack) {
-        var obj = common.stringToJson(message);
-        if ( obj['type'] && _.isString(obj['type']) ) {
-          switch (obj['type']) {
-            case 'command':
-              room.router.message(client, obj);
-            break;
-            case 'data': // fall-through
-            case 'message':
-              if(client['anonymous_login'] === true){
-                room.radio.write(datapack, client);
-              }
-              break;
-            default:
-              // ignore other unknown types
-            break;
-          }
-        }
       }).on('listening', callback);
       room.socket.listen(room.options.port, '::');
     }]
@@ -488,19 +439,17 @@ Room.prototype.port = function() {
   return this.socket.address().port;
 };
 
-Room.prototype.send_to_socket = function (socket_ref, obj) {
+Room.prototype.sendCommandTo = function (client_ref, obj) {
   var room_ref = this;
   var jsString = common.jsonToString(obj);
-  if(socket_ref['anonymous_login'] === true){
-    // FIXME: should package data before send it
-    socket.util.bufferToPack(new Buffer(jsString), true, function(d){
-      room_ref.radio.singleWrite(d, socket_ref);
-    });
-    
-  }else{
-    room_ref.socket.sendData(socket_ref, new Buffer(jsString));
-  }
-}
+  room_ref.socket.sendDataTo(client_ref, 
+    new Buffer(jsString), 
+    SocketClient['PACK_TYPE']['COMMAND']);
+
+  jsString = null;
+  obj = null;
+  client_ref = null;
+};
 
 Room.prototype.close = function() {
   var self = this;
@@ -531,20 +480,12 @@ Room.prototype.close = function() {
 
   if (self.socket) {
     try {
-      self.socket.close();
+      self.socket.close(!self.options.permanent);
     } catch (e) {
       logger.error('Cannot close socket:', e);
     }
     self.socket = null;
     
-  }
-
-  if (self.radio) {
-    if (!self.options.permanent) {
-      self.radio.removeFile();
-    }
-    self.radio.cleanup();
-    self.radio = null;
   }
 
   if (!self.options.permanent) {
@@ -554,8 +495,6 @@ Room.prototype.close = function() {
   }
 
   self.status = 'closed';
-  
-  return this;
 };
 
 Room.prototype.currentLoad = function() {
@@ -570,24 +509,25 @@ Room.prototype.currentLoad = function() {
   
 };
 
-Room.prototype.notify = function(con, content) {
+Room.prototype.notify = function(client_ref, content) {
   var self = this;
   var sendContent = {
-    action: 'notify',
+    'action': 'notify',
     'content': content
   };
 
-  self.send_to_socket(con, sendContent);
-  logger.debug('socket: ', self.socket, sendContent);
+  self.sendCommandTo(client_ref, sendContent);
 };
 
-Room.prototype.bradcastMessage = function(content) {
+Room.prototype.notifyAll = function(content) {
   var self = this;
   var sendContent = {
-    action: 'notify',
+    'action': 'notify',
     'content': content
   };
-  self.socket.broadcastData(common.jsonToString(sendContent));
+  sendContent = common.jsonToString(sendContent);
+  sendContent = new Buffer(sendContent);
+  self.socket.broadcastData(sendContent, SocketClient.PACK_TYPE['COMMAND']);
 };
 
 module.exports = Room;

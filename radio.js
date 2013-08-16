@@ -150,7 +150,9 @@ function appendToPendings(chunk, list) {
   return list;
 }
 
-Radio.prototype.write = function(datachunk, source) {
+// write expected RadioChunk that send to every Client and record data.
+
+Radio.prototype.write = function(datachunk) {
   if ( _.isString(datachunk) ) {
     datachunk = new Buffer(datachunk);
   }
@@ -159,12 +161,8 @@ Radio.prototype.write = function(datachunk, source) {
 
     r.writeBufferedFile.append(datachunk, function() {
       async.each(r.clients, function(ele, callback){
-        if (ele == source) {
-          callback();
-        }else{
-          ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, datachunk.length), ele.pendingList);
-          callback();
-        }
+        ele.pendingList = appendToPendings(new RadioChunk(r.lastPos, datachunk.length), ele.pendingList);
+        callback();
       }, function(err){
         if (err) {
           logger.error('Error while appending jobs to clients', err);
@@ -179,7 +177,32 @@ Radio.prototype.write = function(datachunk, source) {
   datachunk = null;
 };
 
-Radio.prototype.singleWrite = function(datachunk, destSocket) {
+// write expected RadioRAMChunk that send to every Client but doesn't record.
+
+Radio.prototype.send = function(datachunk) {
+  if ( _.isString(datachunk) ) {
+    datachunk = new Buffer(datachunk);
+  }
+  
+  async.each(r.clients, function(ele, callback){
+    ele.pendingList = appendToPendings(new RadioRAMChunk(datachunk), ele.pendingList);
+    callback();
+  }, function(err){
+    if (err) {
+      logger.error('Error while appending jobs to clients', err);
+    } 
+  });
+
+  datachunk = null;
+};
+
+// write expected RadioRAMChunk that send to one specific Client but doesn't record.
+
+Radio.prototype.singleSend = function(datachunk, destClient) {
+  if ( !this.isClientInRadio(destClient) ) {
+    logger.warn('Try to use singleSend but cllient is not in Radio');
+    return;
+  }
   if ( _.isString(datachunk) ) {
     datachunk = new Buffer(datachunk);
   }
@@ -187,7 +210,7 @@ Radio.prototype.singleWrite = function(datachunk, destSocket) {
     var r = this;
 
     r.writeBufferedFile.append(datachunk, function() {
-      destSocket.pendingList = appendToPendings(new RadioRAMChunk(datachunk), destSocket.pendingList);
+      destClient.pendingList = appendToPendings(new RadioRAMChunk(datachunk), destClient.pendingList);
       datachunk = null;
     });
     
@@ -334,7 +357,7 @@ Radio.prototype.dataLength = function() {
   }
 };
 
-Radio.prototype.isSocketInRadio = function(cli) {
+Radio.prototype.isClientInRadio = function(cli) {
   return this.clients.indexOf(cli) >= 0;
 };
 
@@ -343,6 +366,7 @@ Radio.prototype.prune = function() {
   async.series([
       // delete old pending chunks
       // FIXME: delete old chunks may result in a imcomplete data pack.
+      // FIXME: shouldn't delete Ram chunks.
       function(callback){
         async.each(self.clients, function(item, done){
           item.pendingList = [];
