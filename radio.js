@@ -150,7 +150,7 @@ function appendToPendings(chunk, list) {
   return list;
 }
 
-// write expected RadioChunk that send to every Client and record data.
+// write expected Buffer that send to every Client and record data.
 
 Radio.prototype.write = function(datachunk) {
   if ( _.isString(datachunk) ) {
@@ -177,7 +177,7 @@ Radio.prototype.write = function(datachunk) {
   datachunk = null;
 };
 
-// write expected RadioRAMChunk that send to every Client but doesn't record.
+// write expected Buffer that send to every Client but doesn't record.
 
 Radio.prototype.send = function(datachunk) {
   if ( _.isString(datachunk) ) {
@@ -196,9 +196,10 @@ Radio.prototype.send = function(datachunk) {
   datachunk = null;
 };
 
-// write expected RadioRAMChunk that send to one specific Client but doesn't record.
+// write expected Buffer that send to one specific Client but doesn't record.
 
 Radio.prototype.singleSend = function(datachunk, destClient) {
+  logger.trace('singleSend', datachunk);
   if ( !this.isClientInRadio(destClient) ) {
     logger.warn('Try to use singleSend but cllient is not in Radio');
     return;
@@ -228,7 +229,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
     if(item instanceof RadioChunk){
       bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
         if (datachunk.length == item['chunkSize']) {
-          var isIdel = client.write(datachunk, function(){
+          var isIdel = client.writeRaw(datachunk, function(){
             // logger.debug(datachunk);
             ok(isIdel);
           });
@@ -240,7 +241,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
       });
     }else{
       // take care of RadioRAMChunk
-      var isIdel = client.write(item['buffer'], function() {
+      var isIdel = client.writeRaw(item['buffer'], function() {
         ok(isIdel);
       });
     }
@@ -358,7 +359,7 @@ Radio.prototype.dataLength = function() {
 };
 
 Radio.prototype.isClientInRadio = function(cli) {
-  return this.clients.indexOf(cli) >= 0;
+  return _.contains(this.clients, cli);
 };
 
 Radio.prototype.prune = function() {

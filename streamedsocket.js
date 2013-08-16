@@ -45,29 +45,30 @@ function protocolPack(data) {
 
 
 function bufferToPack(data, header, fn) {
-  async.auto({
-    'compress_data': function(callback){
+  async.waterfall([
+    // compress data
+    function(callback){
       if (header['compress']) {
         common.qCompress(data, function(d) {
-          data = d;
-          callback();
+          callback(null, d);
         });
       }else{
-        callback();
+        callback(null, data);
       }
     },
-    'add_flag': ['compress_data', function(callback){
+    // add header
+    function(d_data, callback){
       var tmpData = new Buffer(1);
-      tmpData[0] = (header['compress'] & 0x1) | (header['pack_type'] & SocketClient.PACK_TYPE['MASK']);
-      data = Buffer.concat([tmpData, data]);
-      data = protocolPack(data);
-      callback();
-    }]
-  }, function(err){
+      tmpData[0] = (header['compress'] & 0x1) | ((header['pack_type'] & SocketClient.PACK_TYPE['MASK']) << 0x1);
+      d_data = Buffer.concat([tmpData, d_data]);
+      // d_data = protocolPack(d_data);
+      callback(null, d_data);
+    }
+  ], function(err, result){
     if (err) {
       logger.error(err);
     }else{
-      fn(data);
+      fn(result);
     }
   });
 }
@@ -353,6 +354,7 @@ function SocketServer(options) {
     });
     socket_client.on('data', function(rawData){
       server.emit('clientdata', rawData);
+      logger.trace('ondata raw:', rawData);
       server.radio.write(rawData);
     });
     socket_client.on('message', function(rawData){
@@ -389,11 +391,12 @@ function SocketServer(options) {
 util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
+  var self = this;
   var PT = SocketClient.PACK_TYPE;
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
-    var datapack = protocolPack(data)
-    if ( _.contains(radio.clients, client_ref) && client_ref['anonymous_login'] ) {
-      radio.singleSend(datapack);
+    var datapack = protocolPack(result);
+    if ( self.radio.isClientInRadio(client_ref) ) {
+      self.radio.singleSend(datapack, client_ref);
     }else{
       client_ref.sendPack(datapack);
     }
@@ -443,6 +446,7 @@ SocketServer.prototype.closeServer = function(delete_archive) {
 };
 
 exports.SocketServer = SocketServer;
+exports.SocketClient = SocketClient;
 exports.SocketReadAdapter = SocketReadAdapter;
 exports.util = {
   'protocolPack': protocolPack,

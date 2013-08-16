@@ -9,6 +9,7 @@ var async = require('async');
 var toobusy = require('toobusy');
 var common = require('./common.js');
 var socket = require('./streamedsocket.js');
+var SocketClient = socket.SocketClient;
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
@@ -339,24 +340,23 @@ function Room(options) {
           },
           'send_announcement': ['wait_login', function(callback){
             var ret = {
-              'type': 'message',
               'content': globalConf['room']['serverMsg']
             };
-            // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
-            // room.socket.sendData(con, common.jsonToString(ret));
-            client.sendMessagePack(new Buffer(common.jsonToString(ret)));
-            callback();
-          }],
-          'send_room_welcome_msg': ['send_announcement', function(callback){
             // TODO: use cmd channal
             // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
             //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
             //             '如果您在使用中有任何疑问，'+
             //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
             // room.notify(con, send_msg);
+
+            // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
+            // room.socket.sendData(con, common.jsonToString(ret));
+            client.sendMessagePack(new Buffer(common.jsonToString(ret)));
+            callback();
+          }],
+          'send_room_welcome_msg': ['send_announcement', function(callback){
             if (room.options.welcomemsg.length) {
               var ret = {
-                'type': 'message',
                 'content': room.options.welcomemsg + '\n'
               };
               // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
