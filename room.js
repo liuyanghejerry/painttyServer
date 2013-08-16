@@ -12,7 +12,7 @@ var socket = require('./streamedsocket.js');
 var Router = require("./router.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
-var globalSalt = common.globalSalt;
+var globalSaltHash = common.globalSaltHash;
 
 function Room(options) {
   events.EventEmitter.call(this);
@@ -77,11 +77,11 @@ function Room(options) {
   async.auto({
     'load_salt': function(callback) {
       if (room.options.salt.length < 1) {
-        if (globalSalt.length < 1) {
+        if (globalSaltHash.length < 1) {
           logger.error('Salt load error!');
           room.options.salt = new Buffer('temp salt');
         }else{
-          room.options.salt = globalSalt;
+          room.options.salt = globalSaltHash;
         }
       }
       callback();

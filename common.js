@@ -70,6 +70,12 @@ exports.readSalt = function() {
   return fs.readFileSync(globalConf['salt']['path']);
 };
 
+exports.saltHash = function() {
+  var hash = crypto.createHash('sha256');
+  hash.update(this.readSalt());
+  return hash.digest();
+};
+
 exports.ensureDir = function(path, callback) {
   fs.exists(path, function(exists) {
     if (!exists) {
@@ -91,3 +97,4 @@ exports.logger = logger;
 exports.globalConf = globalConf;
 exports.nullDevice = exports.createNullDevice();
 exports.globalSalt = exports.readSalt();
+exports.globalSaltHash = exports.saltHash();
