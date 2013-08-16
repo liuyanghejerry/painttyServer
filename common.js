@@ -2,6 +2,7 @@ var os = require('os');
 var zlib = require('zlib');
 var fs = require('fs');
 var util = require("util");
+var crypto = require('crypto');
 var Buffers = require('buffers');
 var _ = require('underscore');
 var globalConf = require('./config/config.js');
