@@ -1,3 +1,4 @@
+var events = require('events');
 var util = require("util");
 var net = require('net-cluster');
 var async = require('async');
@@ -97,10 +98,10 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
   }
   
   function GETFLAG(pkgData) {
-    var ret = {};
-    ret['compress'] = pkgData[0] & 0x1;
-    ret['pack_type'] = (pkgData[0] >> 0x1) & SocketClient.PACK_TYPE['MASK'];
-    return ret;
+    return {
+      'compress': pkgData[0] & 0x1,
+      'pack_type': (pkgData[0] >> 0x1) & SocketClient.PACK_TYPE['MASK']
+    };
   }
   
   while (true) {
@@ -134,10 +135,6 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
       adapter.emit('message', p_header['pack_type'], dataBlock, repacked);
     }
     adapter._dataSize = 0;
-    packageData = null;
-    p_header = null;
-    dataBlock = null;
-    repacked = null;
   }
   done();
 };
@@ -146,6 +143,23 @@ SocketReadAdapter.prototype.cleanup = function() {
   this._buf = null;
   this._dataSize = 0;
   this.removeAllListeners();
+};
+
+var SocketClientDefines = {};
+
+SocketClientDefines.PACK_TYPE = {
+  'MANAGER': 0x0,
+  'COMMAND': 0x1,
+  'DATA': 0x2,
+  'MESSAGE': 0x3,
+  'MASK': 0x3 // sepcial one, not really one of type but just a bit mask
+};
+
+SocketClientDefines.CLIENT_STATUS = {
+  'INIT': 0,
+  'RUNNING': 1,
+  'CLOSED': 2,
+  'DESTROYED': 3
 };
 
 function SocketClient(socket) {
@@ -201,22 +215,9 @@ function SocketClient(socket) {
   });
 }
 
-SocketClient.prototype.PACK_TYPE = {
-  'MANAGER': 0x0
-  'COMMAND': 0x1,
-  'DATA': 0x2,
-  'MESSAGE': 0x3,
-  'MASK': 0x3 // sepcial one, not really one of type but just a bit mask
-};
-
-SocketClient.prototype.CLIENT_STATUS = {
-  'INIT': 0,
-  'RUNNING': 1,
-  'CLOSED': 2,
-  'DESTROYED': 3
-};
-
 util.inherits(SocketClient, events.EventEmitter);
+
+_.extend(SocketClient, SocketClientDefines);
 
 SocketClient.prototype.writeRaw = function(data, fn) {
   try {
@@ -227,7 +228,7 @@ SocketClient.prototype.writeRaw = function(data, fn) {
 }
 
 SocketClient.prototype.sendPack = function(data, fn) {
-  this.socket.writeRaw(protocolPack(data), fn);
+  this.writeRaw(protocolPack(data), fn);
 }
 
 SocketClient.prototype.sendDataPack = function(data, fn) {

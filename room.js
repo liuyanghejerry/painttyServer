@@ -431,10 +431,6 @@ function Room(options) {
 
 util.inherits(Room, events.EventEmitter);
 
-Room.prototype.start = function() {
-  return this;
-};
-
 Room.prototype.port = function() {
   return this.socket.address().port;
 };

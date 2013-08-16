@@ -124,9 +124,9 @@ if (cluster.isMaster) {
       name: 'rmmgr', 
       pubPort: globalConf['manager']['publicPort']
     });
-    roomManager.on('ready', function() {
-      roomManager.start();
-    });
+    // roomManager.on('ready', function() {
+    //   roomManager.start();
+    // });
 
     process.on('SIGINT', function() {
       if (roomManager) {
