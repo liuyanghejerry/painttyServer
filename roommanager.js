@@ -1,7 +1,6 @@
 ﻿var events = require('events');
 var cluster = require('cluster');
 var util = require("util");
-var fs = require('fs');
 var crypto = require('crypto');
 var _ = require('underscore');
 var toobusy = require('toobusy');
