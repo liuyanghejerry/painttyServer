@@ -45,7 +45,6 @@ function protocolPack(data) {
 
 
 function bufferToPack(data, header, fn) {
-  logger.trace('bufferToPack:', common.stringToJson(data));
   async.waterfall([
     // compress data
     function(callback){
@@ -298,7 +297,10 @@ SocketClient.prototype.destroy = function() {
   this.anonymous_login = false;
   this.adapter = null;
   this.status = SocketClient.CLIENT_STATUS['DESTROYED'];
-  this.removeAllListeners();
+  var self = this;
+  process.nextTick(function(){
+    self.removeAllListeners();
+  });
 }
 
 
@@ -369,9 +371,12 @@ function SocketServer(options) {
     }).on('message', function(rawData){
       server.emit('clientmessage', rawData);
       server.radio.send(rawData);
+      // FIXME: here SocketServer should NOT aware of anything about Room.
+      // The real problem is that Radio is actually between Room and SocketServer.
+      // This complicated connection is NOT good.
     }).once('inroom', function(){
       server.radio.addClient(socket_client);
-    }).once('outroom', onclose);
+    }).once('close', onclose);
 
     process.nextTick(function(){
       server.emit('newclient', socket_client);
@@ -401,7 +406,7 @@ SocketServer.prototype.broadcastData = function (data, pack_type) {
   // TODO: need to change for new interface of SocketClient
   var PT = SocketClient.PACK_TYPE;
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
-    var datapack = protocolPack(data)
+    var datapack = protocolPack(result);
     server.radio.send(datapack);
   });
 };

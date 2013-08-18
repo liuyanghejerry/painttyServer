@@ -55,23 +55,31 @@ function Room(options) {
   room.status = 'init';
   room.router = new Router();
 
+  function roomTimeout(room_ref) {
+    var stampDiff = Date.now() - room_ref.options.lastCheckoutTimestamp;
+    if ( stampDiff < room_ref.options.expiration * 3600 * 1000 ) {
+      return false;
+    };
+
+    logger.trace('Room', room_ref.options.name, 'timeout and will be deleted.');
+    room_ref.options.permanent = false;
+    if (room_ref.currentLoad() > 0) {
+      room_ref.options.emptyclose = true;
+    }else{
+      // process.nextTick(room_ref.close);
+      room_ref.close();
+    }
+    return true;
+  }
+
+  if(roomTimeout(room)) {
+    return;
+  }
+
   function prepareCheckoutTimer(r_room) {
     if (r_room.options.expiration > 0) {
-      r_room.checkoutTimer = setInterval(function onTimeout() {
-        var stampDiff = Date.now() - r_room.options.lastCheckoutTimestamp;
-        if ( stampDiff < r_room.options.expiration * 3600 * 1000 ) {
-          return;
-        };
-
-        logger.trace('Room', r_room.options.name, 'timeout and will be deleted.');
-        r_room.options.permanent = false;
-        if (r_room.currentLoad() > 0) {
-          r_room.options.emptyclose = true;
-        }else{
-          r_room.close();
-        }       
-      },
-      2 * 3600 * 1000);
+      var toCall = _.partial(roomTimeout, r_room);
+      r_room.checkoutTimer = setInterval(toCall, 2 * 3600 * 1000);
     }
   }
 
@@ -363,9 +371,13 @@ function Room(options) {
               // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
               client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             }
-            setTimeout(function(){
+            // FIXEME: need a way to precisely seperate welcome messages and data in archive later
+            // setTimeout(function(){
+            //   client.emit('inroom');
+            // }, 5000);
+            setImmediate(function(){
               client.emit('inroom');
-            }, 5000);
+            });
             callback();
           }]
         });
@@ -457,6 +469,7 @@ Room.prototype.sendCommandTo = function (client_ref, obj) {
 
 Room.prototype.close = function() {
   var self = this;
+  
   if (self.status == 'closed') {
     return self;
   }

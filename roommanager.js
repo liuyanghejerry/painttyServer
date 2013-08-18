@@ -473,7 +473,7 @@ function RoomManager(options) {
               'password': element.password,
               'canvasSize': element.canvasSize,
               'key': element.key,
-              'expiration': element.expiration, // 72 hours to close itself
+              'expiration': element.expiration, // 48 hours to close itself
               'permanent': element.permanent,
               'lastCheckoutTimestamp': element.checkoutTimestamp,
               'archive': element.archive,
