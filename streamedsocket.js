@@ -45,6 +45,7 @@ function protocolPack(data) {
 
 
 function bufferToPack(data, header, fn) {
+  logger.trace('bufferToPack:', common.stringToJson(data));
   async.waterfall([
     // compress data
     function(callback){
@@ -61,7 +62,6 @@ function bufferToPack(data, header, fn) {
       var tmpData = new Buffer(1);
       tmpData[0] = (header['compress'] & 0x1) | ((header['pack_type'] & SocketClient.PACK_TYPE['MASK']) << 0x1);
       d_data = Buffer.concat([tmpData, d_data]);
-      // d_data = protocolPack(d_data);
       callback(null, d_data);
     }
   ], function(err, result){
@@ -346,30 +346,10 @@ function SocketServer(options) {
     var socket_client = new SocketClient(cli);
     server.clients.push(socket_client);
 
-    socket_client.on('manager', function(data){
-      server.emit('clientmanager', data);
-    });
-    socket_client.on('command', function(data){
-      server.emit('clientcommand', data);
-    });
-    socket_client.on('data', function(rawData){
-      server.emit('clientdata', rawData);
-      logger.trace('ondata raw:', rawData);
-      server.radio.write(rawData);
-    });
-    socket_client.on('message', function(rawData){
-      server.emit('clientmessage', rawData);
-      server.radio.send(rawData);
-    });
-    socket_client.on('login', function(){
-      server.radio.addClient(socket_client);
-    });
-
     var onclose = function () {
       // erase from client list
       var index = server.clients.indexOf(socket_client);
       server.clients.splice(index, 1);
-
       socket_client.destroy();
     };
 
@@ -377,7 +357,21 @@ function SocketServer(options) {
       logger.error('Error with socket:', err);
     };
 
-    socket_client.once('close', onclose);
+    cli.on('error', onerror);
+
+    socket_client.on('manager', function(data){
+      server.emit('clientmanager', data);
+    }).on('command', function(data){
+      server.emit('clientcommand', data);
+    }).on('data', function(rawData){
+      server.emit('clientdata', rawData);
+      server.radio.write(rawData);
+    }).on('message', function(rawData){
+      server.emit('clientmessage', rawData);
+      server.radio.send(rawData);
+    }).once('inroom', function(){
+      server.radio.addClient(socket_client);
+    }).once('outroom', onclose);
 
     process.nextTick(function(){
       server.emit('newclient', socket_client);
@@ -392,13 +386,12 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
   var self = this;
-  var PT = SocketClient.PACK_TYPE;
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
-    var datapack = protocolPack(result);
     if ( self.radio.isClientInRadio(client_ref) ) {
+      var datapack = protocolPack(result);
       self.radio.singleSend(datapack, client_ref);
     }else{
-      client_ref.sendPack(datapack);
+      client_ref.sendPack(result);
     }
   });
 };

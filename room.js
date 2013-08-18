@@ -181,7 +181,9 @@ function Room(options) {
         r_room.sendCommandTo(cli, ret);
 
         cli['username'] = obj['name'];
-        cli.emit('login');
+        process.nextTick(function(){
+          cli.emit('login');
+        });
         return;
       },
       room).reg('request', 'close',
@@ -350,7 +352,6 @@ function Room(options) {
             // room.notify(con, send_msg);
 
             // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
-            // room.socket.sendData(con, common.jsonToString(ret));
             client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             callback();
           }],
@@ -362,11 +363,18 @@ function Room(options) {
               // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
               client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             }
+            setTimeout(function(){
+              client.emit('inroom');
+            }, 5000);
             callback();
           }]
         });
 
         client.once('close', function() {
+          process.nextTick(function(){
+            client.emit('outroom');
+          });
+
           if (room.options.emptyclose) {
             if (room.currentLoad() < 1) { // when exit, still connected on.
               room.close();
@@ -476,7 +484,7 @@ Room.prototype.close = function() {
 
   if (self.socket) {
     try {
-      self.socket.close(!self.options.permanent);
+      self.socket.closeServer(!self.options.permanent);
     } catch (e) {
       logger.error('Cannot close socket:', e);
     }

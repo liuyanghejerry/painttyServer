@@ -184,7 +184,7 @@ Radio.prototype.send = function(datachunk) {
     datachunk = new Buffer(datachunk);
   }
   
-  async.each(r.clients, function(ele, callback){
+  async.each(this.clients, function(ele, callback){
     ele.pendingList = appendToPendings(new RadioRAMChunk(datachunk), ele.pendingList);
     callback();
   }, function(err){
@@ -199,7 +199,7 @@ Radio.prototype.send = function(datachunk) {
 // write expected Buffer that send to one specific Client but doesn't record.
 
 Radio.prototype.singleSend = function(datachunk, destClient) {
-  logger.trace('singleSend', datachunk);
+  // logger.trace('singleSend', datachunk);
   if ( !this.isClientInRadio(destClient) ) {
     logger.warn('Try to use singleSend but cllient is not in Radio');
     return;
@@ -207,18 +207,8 @@ Radio.prototype.singleSend = function(datachunk, destClient) {
   if ( _.isString(datachunk) ) {
     datachunk = new Buffer(datachunk);
   }
-  if(this.writeBufferedFile) {
-    var r = this;
-
-    r.writeBufferedFile.append(datachunk, function() {
-      destClient.pendingList = appendToPendings(new RadioRAMChunk(datachunk), destClient.pendingList);
-      datachunk = null;
-    });
-    
-  }else{
-    logger.error('Radio commanded to write without stream attached');
-  }
-  datachunk = null;
+  destClient.pendingList = appendToPendings(new RadioRAMChunk(datachunk), destClient.pendingList);
+  // datachunk = null;
 };
 
 function fetch_and_send(list, bufferedfile, client, ok) {
@@ -257,7 +247,7 @@ Radio.prototype.addClient = function(cli) {
     var c = cli;
     if (c && c.pendingList && c.pendingList.length > 0) {
       // send chunks one by one in pendingList
-      logger.trace('queue:', c.pendingList);
+      // logger.trace('queue:', c.pendingList);
       
       var should_next = true;
       async.whilst(
