@@ -395,8 +395,8 @@ Radio.prototype.cleanup = function() {
   if (this.writeBufferedFile) {
     // ensure data is written
     this.writeBufferedFile.writeToDisk(function(){
-      this.writeBufferedFile.cleanup();
-      this.writeBufferedFile = null;
+      self.writeBufferedFile.cleanup();
+      self.writeBufferedFile = null;
     });
   }
   this.removeAllListeners();
