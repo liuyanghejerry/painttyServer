@@ -324,6 +324,16 @@ function Room(options) {
         'recovery': room.options.recovery,
         'record': true
       });
+
+      // if port is in use, we retry 5 times
+      var bindRetryFailed = _.after(5, function(){
+        logger.warn('Port %s in use, reached retry limit. Now try to listen a random port'
+          , room.options.port);
+        room.socket.close();
+        room.socket.listen(0, '::');
+        return true;
+      });
+
       // room.socket.maxConnections = room.options.maxLoad;
       room.socket.on('newclient',
       function(client) {
@@ -348,17 +358,12 @@ function Room(options) {
           },
           'send_announcement': ['wait_login', function(callback){
             var ret = {
+              'action': 'notify',
               'content': globalConf['room']['serverMsg']
             };
-            // TODO: use cmd channal
-            // var send_msg = '<p style="font-weight:bold;">欢迎使用'+
-            //             '<a href="http://mrspaint.com">茶绘君</a>。<br/>'+
-            //             '如果您在使用中有任何疑问，'+
-            //             '请在<a href="http://tieba.baidu.com/f?kw=%B2%E8%BB%E6%BE%FD">茶绘君贴吧</a>留言。</p>\n';
-            // room.notify(con, send_msg);
 
             // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
-            client.sendMessagePack(new Buffer(common.jsonToString(ret)));
+            client.sendCommandPack(new Buffer(common.jsonToString(ret)));
             callback();
           }],
           'send_room_welcome_msg': ['send_announcement', function(callback){
@@ -366,16 +371,15 @@ function Room(options) {
               var ret = {
                 'content': room.options.welcomemsg + '\n'
               };
-              // NOTICE: don't use sendCommandTo, since the client is not added to radio yet.
               client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             }
             // FIXEME: need a way to precisely seperate welcome messages and data in archive later
-            // setTimeout(function(){
-            //   client.emit('inroom');
-            // }, 5000);
-            setImmediate(function(){
+            setTimeout(function(){
               client.emit('inroom');
-            });
+            }, 5000);
+            // setImmediate(function(){
+            //   client.emit('inroom');
+            // });
             callback();
           }]
         });
@@ -403,7 +407,15 @@ function Room(options) {
           var obj = common.stringToJson(data);
           room.router.message(client, obj);
         });
-      }).on('listening', callback);
+      }).on('listening', callback).on('error', function(err){
+        if ( err.code == 'EADDRINUSE' && !bindRetryFailed() ) {
+          logger.warn('Port %s in use, retrying...', room.options.port);
+          setTimeout(function () {
+            room.socket.close();
+            room.socket.listen(room.options.port, '::');
+          }, 1000);
+        }
+      });
       room.socket.listen(room.options.port, '::');
     }]
   }, function(er){
@@ -412,7 +424,7 @@ function Room(options) {
       room.options.permanent = false;
       room.close();
     }else{
-      var tmpF = function() {
+      function onReady() {
         room.emit('create', {
           'port': room.socket.address().port,
           'maxLoad': room.options.maxLoad,
@@ -440,7 +452,7 @@ function Room(options) {
         }
         room.uploadCurrentInfoTimer = setInterval(uploadCurrentInfo, 1000*10);
       };
-      process.nextTick(tmpF);
+      process.nextTick(onReady);
       room.status = 'running';
     }
   });
