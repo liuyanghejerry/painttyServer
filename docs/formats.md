@@ -333,6 +333,19 @@ Additional `end` may used in future version, which can be useful when we have a 
 
 After this response, server starts sending archive data.
 
+Or if something goes wrong:
+
+	{
+		response: 'archive',
+		result: false,
+		errcode: 900
+	}
+
+where `errcode` can be:
+
+* 900: unknown error
+* 901: out of range
+
 ### Room management
 
 All room management actions need a signed key to prove that the actions are made by room owners.

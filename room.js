@@ -37,6 +37,7 @@ function Room(options) {
     self.salt = '';
     self.key = '';
     self.archive = '';
+    self.archiveSign = '';
     self.port = 0;
   };
 
@@ -237,16 +238,22 @@ function Room(options) {
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             r_room.socket.pruneArchive();
-            var ret = {
-              response: 'clearall',
-              result: true
-            };
-            r_room.sendCommandTo(cli, ret);
-            var ret_all = {
-              action: 'clearall',
-            };
-            jsString = common.jsonToString(ret_all);
-            r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
+            r_room.socket.once('archivecleared', function(){
+              var new_sign = r_room.socket.archiveSign;
+              r_room.options['archiveSign'] = new_sign;
+              var ret = {
+                response: 'clearall',
+                result: true
+              };
+              r_room.sendCommandTo(cli, ret);
+              var ret_all = {
+                action: 'clearall',
+                'signature': new_sign
+              };
+              jsString = common.jsonToString(ret_all);
+              r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
+              r_room.emit('newarchivesign', new_sign);
+            });
           } else {
             var ret = {
               response: 'clearall',
@@ -315,12 +322,56 @@ function Room(options) {
           r_room.sendCommandTo(cli, ret);
         }
       },
-      room);
+      room).reg('request', 'archivesign',
+      function(cli, obj) {
+        if (cli['anonymous_login']) {
+          var ret = {
+            response: 'archivesign',
+            'signature': room.options.archiveSign,
+            result: true
+          };
+          logger.log(ret);
+          room.sendCommandTo(cli, ret);
+        }
+      }).reg('request', 'archive', 
+      function(cli, obj) {
+        if (cli['anonymous_login']) {
+          var realLength = room.socket.archiveLength()
+          var startPos = 0;
+          var endPos = realLength;
+          if (obj['start']) {
+            startPos = parseInt(obj['start'], 10);
+          }
+          if (obj['end']) {
+            endPos = parseInt(obj['end'], 10);
+          }
+
+          if (startPos > realLength
+            || endPos > realLength
+            || endPos < startPos) {
+            var ret = {
+              response: 'archive',
+              result: false,
+              errcode: 901
+            };
+          }else{
+            var ret = {
+              response: 'archive',
+              'signature': room.options.archiveSign,
+              result: true
+            };
+            logger.log(ret);
+            room.sendCommandTo(cli, ret);
+            room.socket.joinRadio(cli, startPos ,endPos);
+          }
+        }
+      });
       callback();
     }],
     'init_socket': ['install_router', function(callback){
       room.socket = new socket.SocketServer({
         'archive': room.archive,
+        'archiveSign': room.options.archiveSign,
         'recovery': room.options.recovery,
         'record': true
       });
@@ -334,7 +385,6 @@ function Room(options) {
         return true;
       });
 
-      // room.socket.maxConnections = room.options.maxLoad;
       room.socket.on('newclient',
       function(client) {
         async.auto({
@@ -374,12 +424,12 @@ function Room(options) {
               client.sendMessagePack(new Buffer(common.jsonToString(ret)));
             }
             // FIXEME: need a way to precisely seperate welcome messages and data in archive later
-            setTimeout(function(){
-              client.emit('inroom');
-            }, 5000);
-            // setImmediate(function(){
+            // setTimeout(function(){
             //   client.emit('inroom');
-            // });
+            // }, 5000);
+            setImmediate(function(){
+              client.emit('inroom');
+            });
             callback();
           }]
         });
@@ -416,7 +466,10 @@ function Room(options) {
           }, 1000);
         }
       });
-      room.socket.listen(room.options.port, '::');
+      room.socket.once('ready', function(){
+        room.options.archiveSign = room.socket.options['archiveSign'];
+        room.socket.listen(room.options.port, '::');
+      });
     }]
   }, function(er){
     if (er) {

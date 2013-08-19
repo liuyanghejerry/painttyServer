@@ -365,6 +365,7 @@ function RoomManager(options) {
              'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
              'key': info['key'],
              'archive': room['archive'],
+             'archiveSign': room['options']['archiveSign'],
              'port': room.port(),
              'localId': r_self.op.localId
           };
@@ -402,6 +403,15 @@ function RoomManager(options) {
                 logger.error(err);
               };
             });
+        }).on('newarchivesign', function(new_sign){
+          RoomModel.update(
+            {'name': room.options.name}, 
+            {'archiveSign': new_sign},
+            function(err) {
+              if (err) {
+                logger.error(err);
+              };
+          });
         });
         
       },
@@ -476,6 +486,7 @@ function RoomManager(options) {
               'permanent': element.permanent,
               'lastCheckoutTimestamp': element.checkoutTimestamp,
               'archive': element.archive,
+              'archiveSign': element.archiveSign,
               'port': element.port,
               'recovery': true
             });
@@ -509,7 +520,7 @@ function RoomManager(options) {
                   if (err) {
                     logger.error(err);
                   };
-                });
+              });
             }).once('destroyed', function() {
               RoomModel.remove({ 'name': n_room.options.name }, function (err) {
                 if (err) {
@@ -517,6 +528,15 @@ function RoomManager(options) {
                   return;
                 }
                 logger.log('Room ', n_room.options.name, 'removed from db.');
+              });
+            }).on('newarchivesign', function(new_sign){
+              RoomModel.update(
+                {'name': n_room.options.name}, 
+                {'archiveSign': new_sign},
+                function(err) {
+                  if (err) {
+                    logger.error(err);
+                  };
               });
             });
           });

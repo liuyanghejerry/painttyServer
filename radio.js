@@ -1,6 +1,7 @@
 var events = require('events');
 var fs = require('fs');
 var util = require("util");
+var crypto = require('crypto');
 var _ = require('underscore');
 var async = require('async');
 var common = require('./common.js');
@@ -28,6 +29,7 @@ function Radio(options) {
   var defaultOptions = new
   function() {
     this.filename = '';
+    this.signature = '';
     this.recovery = false;
   };
 
@@ -37,6 +39,7 @@ function Radio(options) {
   var op = _.defaults(options, defaultOptions);
   self.options = op;
   self.clients = [];
+  self.versionSignature = null;
 
 
   async.auto({
@@ -58,6 +61,14 @@ function Radio(options) {
         self.lastPos = self.writeBufferedFile.wholeSize;
       }else{
         self.lastPos = 0;
+      }
+      callback();
+    }],
+    'gen_signature': ['fecth_size', function(callback){
+      if (self.options.recovery === true) {
+        self.versionSignature = self.options.signature;
+      }else{
+        self.genVersionSignature();
       }
       callback();
     }]
@@ -239,7 +250,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
   ok(false);
 }
 
-Radio.prototype.addClient = function(cli) {
+Radio.prototype.addClient = function(cli, start, end) {
   this.clients.push(cli);
   var radio = this;
   cli.pendingList = [];
@@ -283,12 +294,13 @@ Radio.prototype.addClient = function(cli) {
     // slice whole file into pieces
     function(fileSize, callback){
       if (cli.pendingList) {
-        cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(0, fileSize)));
+        var startPos = parseInt(start, 10)?parseInt(start, 10):0;
+        var endPos = parseInt(end, 10)?parseInt(end, 10):fileSize;
+        cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(startPos, endPos)));
         callback();
       }else{
         callback(new Error("Client has been closed"));
       }
-      
     },
     // send them
     function(callback) {
@@ -352,6 +364,18 @@ Radio.prototype.isClientInRadio = function(cli) {
   return _.contains(this.clients, cli);
 };
 
+Radio.prototype.genVersionSignature = function() {
+  var hash_source = _.uniqueId();
+  var hashed = crypto.createHash('sha1');
+  hashed.update(hash_source, 'utf8');
+  this.versionSignature = hashed.digest('hex');
+  
+  hash_source = null;
+  hashed = null;
+
+  return this.versionSignature;
+};
+
 Radio.prototype.prune = function() {
   var self = this;
   async.series([
@@ -372,13 +396,20 @@ Radio.prototype.prune = function() {
       function(callback){
         self.lastPos = 0;
         callback();
+      },
+      // re-generate version signature
+      function(callback){
+        self.genVersionSignature();
+        callback();
       }
     ],
     function(err, results){
       if (err) {
         logger.error('Error when prune:', err);
       } else{
-        self.emit('pruned');
+        process.nextTick(function(){
+          self.emit('pruned');
+        });
       }
     });
   return this;

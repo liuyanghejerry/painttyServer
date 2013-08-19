@@ -310,6 +310,7 @@ function SocketServer(options) {
   
   var defaultOptions = {
     archive: 'tmp.tmp',
+    archiveSign: '',
     recovery: false,
     record: true,
     keepAlive: true
@@ -329,9 +330,11 @@ function SocketServer(options) {
   if (op.record) {
     server.radio = new Radio({
       'filename': server.options['archive'], 
+      'signature': server.options['archiveSign'],
       'recovery': server.options['recovery']
     });
     server.radio.once('ready', function(){
+      server.options['archiveSign'] = server.radio['versionSignature'];
       process.nextTick(function(){
         server.emit('ready');
       });
@@ -371,11 +374,6 @@ function SocketServer(options) {
     }).on('message', function(rawData){
       server.emit('clientmessage', rawData);
       server.radio.send(rawData);
-      // FIXME: here SocketServer should NOT aware of anything about Room.
-      // The real problem is that Radio is actually between Room and SocketServer.
-      // This complicated connection is NOT good.
-    }).once('inroom', function(){
-      server.radio.addClient(socket_client);
     }).once('close', onclose);
 
     process.nextTick(function(){
@@ -419,6 +417,9 @@ SocketServer.prototype.pruneArchive = function() {
   var self = this;
   if (self.radio) {
     self.radio.prune();
+    self.radio.once('pruned', function(){
+      self.emit('archivecleared');
+    });
   }
 };
 
@@ -429,6 +430,10 @@ SocketServer.prototype.archiveLength = function() {
   }else{
     return 0;
   }
+};
+
+SocketServer.prototype.joinRadio = function(cli, start, end) {
+  this.radio.addClient(cli, start, end);
 };
 
 SocketServer.prototype.closeServer = function(delete_archive) {
