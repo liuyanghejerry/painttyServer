@@ -211,8 +211,6 @@ The errcode can be translate via a `errcode` table. Here, we have errcode 200 fo
 
 ### Login Room
 
-Since Beta, we have 3rd socket channal, command channal. When log in a room, connect to room's cmdSocket, and request login.
-
 The login request must provide pwssword if room requires, or it fails.
 
 #### Request Login
@@ -271,6 +269,69 @@ Here, notably, the `historysize` represents history data size of data socket, wh
 * 303: room is full.
 * 304: you're banned.
 * 305: server is too busy.
+
+#### Request archive signature
+
+Since 0.4, server no longer sends archive automatically. Clients have to request data themselves. And once request success, clients will receive new data as well.
+
+Archive may or may not the one client really wants. Thus, signature check is important if client try to download only part of the archive.
+
+	{
+		request: 'archivesign'
+	}
+
+#### Response archive signature
+
+Only client logged in should be response.
+
+	{
+		response: 'archivesign',
+		result: true,
+		signature: 'f03e8a370aa8dc80f63a6d67401a692ae72fa530'
+	}
+
+`signature` is actually a version number of the archive. This make sense when Room owner clear all the content of the archive. Client may want to ensure if it has the updated archive via this signature. Usually client choose to delete old one and re-download the whole archive. However, this `signature` is NOT globally unique, which means two different room may have the same `signature`. Usually, this won't happen but rooms come from different RoomManager or even diffrent server is not under control. So just don't rely on it.
+
+And a unluck one:
+
+	{
+		response: 'archivesign',
+		result: false,
+		errcode: 800
+	}
+
+* 800: unknown error.
+
+At time of writing, server should always return a successful response. This is beacuse server can always have a signature even if it has an empty archive. But we still left a blank here in case we have another reason for error.
+
+#### Request archive
+
+This is the actual request for archive data.
+
+	{
+		request: 'archive',
+		start: 0
+	}
+
+`start` here means we want archive data right from the start point of the archive. That also means we want the whole archive.
+
+Additional `end` may used in future version, which can be useful when we have a P2P network.
+
+	{
+		request: 'archive',
+		start: 100,
+		end: 10340
+	}
+
+#### Response archive
+
+	{
+		response: 'archive',
+		result: true,
+		signature: 'f03e8a370aa8dc80f63a6d67401a692ae72fa530'
+	}
+
+After this response, server starts sending archive data.
 
 ### Room management
 
@@ -375,6 +436,15 @@ Like close room, the only reason for a failed request from server is that the ow
 		result: false
 	}
 	
+If the request succeeds, everyone in room will recieve another message:
+
+	{
+		'action': 'clearall',
+		'signature': '26d25f9100ff5d1a7d9280094299be88cb4615e1'
+	}
+
+Here the `signature` is the new signature of the archive.
+
 ### Room interaction
 
 Interaction between client and room can be achieved via command socket or channal. For security reason, each request needs a `clientid`. If recieved `clientid` is unknown, the request may be abandoned.
