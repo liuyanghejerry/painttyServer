@@ -231,7 +231,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
       bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
         if (datachunk.length == item['chunkSize']) {
           var isIdel = client.writeRaw(datachunk, function(){
-            // logger.debug(datachunk);
+            logger.trace('fetched data', datachunk);
             ok(isIdel);
           });
         }else{
@@ -250,7 +250,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
   ok(false);
 }
 
-Radio.prototype.addClient = function(cli, start, end) {
+Radio.prototype.addClient = function(cli, start, size) {
   this.clients.push(cli);
   var radio = this;
   cli.pendingList = [];
@@ -294,9 +294,11 @@ Radio.prototype.addClient = function(cli, start, end) {
     // slice whole file into pieces
     function(fileSize, callback){
       if (cli.pendingList) {
-        var startPos = parseInt(start, 10)?parseInt(start, 10):0;
-        var endPos = parseInt(end, 10)?parseInt(end, 10):fileSize;
-        cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(startPos, endPos)));
+        var startPos = startPos>fileSize? fileSize:start;
+        var chunkSize = (startPos+size > fileSize)? size:fileSize-startPos;
+        if (chunkSize != 0) {
+          cli.pendingList = cli.pendingList.concat(split_chunk(new RadioChunk(startPos, chunkSize)));
+        }
         callback();
       }else{
         callback(new Error("Client has been closed"));

@@ -315,12 +315,12 @@ This is the actual request for archive data.
 
 `start` here means we want archive data right from the start point of the archive. That also means we want the whole archive.
 
-Additional `end` may used in future version, which can be useful when we have a P2P network.
+Additional `datalength` may used in future version, which can be useful when we have a P2P network.
 
 	{
 		request: 'archive',
 		start: 100,
-		end: 10340
+		datalength: 10240
 	}
 
 #### Response archive
@@ -328,8 +328,11 @@ Additional `end` may used in future version, which can be useful when we have a 
 	{
 		response: 'archive',
 		result: true,
-		signature: 'f03e8a370aa8dc80f63a6d67401a692ae72fa530'
+		signature: 'f03e8a370aa8dc80f63a6d67401a692ae72fa530',
+		datalength: 10240
 	}
+
+`datalength` here implies how many data should be sent at least. However, a potential problem is what if `clearall` happens before all data sends out? Internally, broken package may result in and any other later packages cannot parsed correctly. I'm still working on this.
 
 After this response, server starts sending archive data.
 

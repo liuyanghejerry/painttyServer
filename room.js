@@ -338,17 +338,16 @@ function Room(options) {
         if (cli['anonymous_login']) {
           var realLength = room.socket.archiveLength()
           var startPos = 0;
-          var endPos = realLength;
           if (obj['start']) {
             startPos = parseInt(obj['start'], 10);
           }
-          if (obj['end']) {
-            endPos = parseInt(obj['end'], 10);
+          var datalength = realLength - startPos;
+          if (obj['datalength']) {
+            datalength = parseInt(obj['datalength'], 10);
+            datalength = (startPos+datalength > realLength)? datalength:realLength-startPos;
           }
 
-          if (startPos > realLength
-            || endPos > realLength
-            || endPos < startPos) {
+          if (startPos > realLength) {
             var ret = {
               response: 'archive',
               result: false,
@@ -358,11 +357,12 @@ function Room(options) {
             var ret = {
               response: 'archive',
               'signature': room.options.archiveSign,
+              'datalength': datalength,
               result: true
             };
             logger.log(ret);
             room.sendCommandTo(cli, ret);
-            room.socket.joinRadio(cli, startPos ,endPos);
+            room.socket.joinRadio(cli, startPos, datalength);
           }
         }
       });
