@@ -418,7 +418,7 @@ SocketServer.prototype.pruneArchive = function() {
   if (self.radio) {
     self.radio.prune();
     self.radio.once('pruned', function(){
-      self.emit('archivecleared');
+      self.emit('archivecleared', self.radio.versionSignature);
     });
   }
 };

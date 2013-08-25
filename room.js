@@ -238,9 +238,8 @@ function Room(options) {
         } else {
           if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
             r_room.socket.pruneArchive();
-            r_room.socket.once('archivecleared', function(){
-              var new_sign = r_room.socket.archiveSign;
-              r_room.options['archiveSign'] = new_sign;
+            r_room.socket.once('archivecleared', function(new_sign){
+              r_room.options.archiveSign = new_sign;
               var ret = {
                 response: 'clearall',
                 result: true

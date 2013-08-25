@@ -231,7 +231,7 @@ function fetch_and_send(list, bufferedfile, client, ok) {
       bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
         if (datachunk.length == item['chunkSize']) {
           var isIdel = client.writeRaw(datachunk, function(){
-            logger.trace('fetched data', datachunk);
+            // logger.trace('fetched data', datachunk);
             ok(isIdel);
           });
         }else{
