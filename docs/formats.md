@@ -240,6 +240,7 @@ Notice, `password` is a String, not integer or others.
 		response: "login",
 		result: true,
 		info: {
+			name: "black hole",
 			historysize: 10240,
 			size: {
 				width: 720,
@@ -258,6 +259,10 @@ Notice, `password` is a String, not integer or others.
 	}
 	
 Here, notably, the `historysize` represents history data size of data socket, which should parse as unsigned long long.
+
+Starting from 0.4, room name is also included in successful response, which makes it possible for taking part in room by URL only.
+
+More information about URL can be seen at [URL](/url.md/).
 	
 `errcode` table:
 
