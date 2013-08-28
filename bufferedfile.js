@@ -169,9 +169,11 @@ BufferedFile.prototype.read = function (pos, length, fn) {
           logger.error('Error when read file', err);
         } else {
           if (bytesRead != length) {
-            logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
-            logger.trace('wanted length: ', length, 'all in file\n',
-              'fetched:', bytesRead, buffer.toString('hex'));
+            // logger.trace('pos, length, fileSize, wholeSize:', pos, length, bf.fileSize, bf.wholeSize);
+            // logger.trace('wanted length: ', length, 'all in file\n',
+            //   'fetched:', bytesRead, buffer.toString('hex'));
+            fn(new Buffer(0));
+            return;
           }
           fn(buffer);
         }

@@ -241,8 +241,6 @@ Notice, `password` is a String, not integer or others.
 		result: true,
 		info: {
 			historysize: 10240,
-			dataport: 8086,
-			msgport: 8087,
 			size: {
 				width: 720,
 				height: 480

@@ -123,14 +123,20 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
     var dataBlock = packageData.slice(1); // dataBlock has no header
     var repacked = REBUILD(packageData);  // repacked, should be equal with packageData
 
+    var afterUncompress = function(d, err) {
+      if(err){
+        logger.error('Uncompress error:', err);
+        return;
+      }
+      adapter.emit('message', this.p_header['pack_type'], d, this.repacked);
+    };
+    afterUncompress = _.bind(afterUncompress, {
+      'repacked': repacked,
+      'p_header': p_header
+    });
+
     if(p_header['compress']) {
-      common.qUncompress(dataBlock, function(d, err) {
-        if(err){
-          logger.error('Uncompress error:', err);
-          return;
-        }
-        adapter.emit('message', p_header['pack_type'], d, repacked);
-      });
+      common.qUncompress(dataBlock, afterUncompress);
     }else{
       adapter.emit('message', p_header['pack_type'], dataBlock, repacked);
     }
