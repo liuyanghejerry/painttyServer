@@ -171,6 +171,7 @@ function Room(options) {
           response: 'login',
           result: true,
           info: {
+            'name': r_room.options.name,
             'historysize': r_room.socket.archiveLength(),
             'size': r_room.options.canvasSize,
             'clientid': function() {
