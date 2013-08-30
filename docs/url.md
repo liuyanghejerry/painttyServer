@@ -7,7 +7,7 @@ This makes sense when sharing your own room on the web. However, since it gives 
 
 The whole URL can be represented as:
 
-	scheme://port@host:password#misc
+	scheme://port@host|password#misc
 
 However, from port to first number sign is encoded by base64. This is very useful for preventing users to mistakenly type to browsers. Also, it makes password not that plain, though still easy to get.
 
@@ -34,31 +34,23 @@ UTF-8 encoded password. Should never longer than 16 characters.
 Misc.
 ---
 
-Any characters after slash is treated as miscellaneous info. Misc info can be encoded or not. Usually an plain misc. is much more readable for human.
+Any characters after slash is treated as miscellaneous info. Misc info is not encoded. Usually an plain misc. is much more readable for human.
 
 Sample
 --
 
 Some URL samples:
 
-	paintty://39258@192.81.128.133
+	paintty://42143@192.81.128.133|1321
 
 is encoded to:
 
-	paintty://MzkyNThAMTkyLjgxLjEyOC4xMzM=
-
-And
-
-	paintty://39258@192.81.128.133:1321
-
-is encoded to:
-
-	paintty://MzkyNThAMTkyLjgxLjEyOC4xMzM6MTMyMQ==
+	paintty://NDIxNDNAMTkyLjgxLjEyOC4xMzN8MTMyMQ==
 
 That 
 
-	paintty://39258@192.81.128.133:1321#asdasd111
+	paintty://58281@2600:3c01::f03c:91ff:fe70:bc64%0#asdasd111
 
 is encoded to:
 
-	paintty://MzkyNThAMTkyLjgxLjEyOC4xMzM6MTMyMQ==#asdasd111
+	paintty://NTgyODFAMjYwMDozYzAxOjpmMDNjOjkxZmY6ZmU3MDpiYzY0JTA=#asdasd111
