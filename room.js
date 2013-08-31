@@ -380,7 +380,6 @@ function Room(options) {
       var bindRetryFailed = _.after(5, function(){
         logger.warn('Port %s in use, reached retry limit. Now try to listen a random port'
           , room.options.port);
-        room.socket.close();
         room.socket.listen(0, '::');
         return true;
       });
@@ -461,7 +460,7 @@ function Room(options) {
         if ( err.code == 'EADDRINUSE' && !bindRetryFailed() ) {
           logger.warn('Port %s in use, retrying...', room.options.port);
           setTimeout(function () {
-            room.socket.close();
+            // room.socket.close();
             room.socket.listen(room.options.port, '::');
           }, 1000);
         }
