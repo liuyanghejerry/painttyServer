@@ -62,7 +62,7 @@ Json file differs when transfer different type of data. To avoid any trouble wit
 
 Finally we decided to have a updater. The bundle updater only do a one-time check to sever for the newest version info. And the server also only response once.
 
-However, to protect main server program, this update check use a separated channal/port. Currently, we use a standalone program to do this job, make it possible for main program to do hot swapping. That is, this update service is not really a part of painttyServer.
+However, to protect main server program, this update check use a separated channel/port. Currently, we use a standalone program to do this job, make it possible for main program to do hot swapping. That is, this update service is not really a part of painttyServer.
 
 #### Request version info
 

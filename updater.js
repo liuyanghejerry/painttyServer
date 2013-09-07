@@ -40,13 +40,13 @@ function Updater(options) {
   // });
 
 self.currentVersion = {
-  version: '0.31',
+  version: '0.40',
     // TODO: use a text file for changelog
     changelog: '',
     level: 4,
     url: {
-      'windows': 'http://mrspaint.oss.aliyuncs.com/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86.zip',
-      'mac': 'http://mrspaint.oss.aliyuncs.com/%E8%8C%B6%E7%BB%98%E5%90%9B.app.zip'
+      'windows': 'http://download.mrspaint.com/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86.zip',
+      'mac': 'http://download.mrspaint.com/%E8%8C%B6%E7%BB%98%E5%90%9B.app.zip'
     }
   };
 
@@ -64,7 +64,7 @@ self.currentVersion = {
       function (err, data) {
         if (err) {
           logger.error(err);
-          cli.end();
+          cli.close();
           return;
         }
 
@@ -88,27 +88,24 @@ self.currentVersion = {
         }
 
         var jsString = JSON.stringify(ret);
-        self.pubServer.sendData(cli, new Buffer(jsString), function() {
-          cli.end();
-        });
+        cli.sendManagerPack(new Buffer(jsString));
       });
   });
 
   var d = domain.create();
   d.on('error', function(er) {
-    console.error('Error in pubServer of Updater:', er);
+    logger.error('Error in pubServer of Updater:', er);
   });
 
   d.run(function() {
-    self.pubServer = new socket.SocketServer({
-      autoBroadcast: false,
-      keepAlive: false
-    });
+    self.pubServer = new socket.SocketServer();
 
-    self.pubServer.on('message', function(client, data) {
-      var obj = common.stringToJson(data);
-      logger.log(obj);
-      self.router.message(client, obj);
+    self.pubServer.on('newclient', function(client){
+      client.on('manager', function(data){
+        var obj = common.stringToJson(data);
+        logger.log(obj);
+        self.router.message(client, obj);
+      });
     });
   });
 }
