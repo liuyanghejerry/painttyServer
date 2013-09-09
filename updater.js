@@ -45,7 +45,7 @@ self.currentVersion = {
     changelog: '',
     level: 4,
     url: {
-      'windows': 'http://download.mrspaint.com/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
+      'windows': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
       'mac': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_Mac_0.4.zip'
     }
   };
