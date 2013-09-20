@@ -195,13 +195,8 @@ Radio.prototype.send = function(datachunk) {
     datachunk = new Buffer(datachunk);
   }
   
-  async.each(this.clients, function(ele, callback){
+  _.each(this.clients, function(ele){
     ele.pendingList = appendToPendings(new RadioRAMChunk(datachunk), ele.pendingList);
-    callback();
-  }, function(err){
-    if (err) {
-      logger.error('Error while appending jobs to clients', err);
-    } 
   });
 
   datachunk = null;
