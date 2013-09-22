@@ -185,7 +185,7 @@ Radio.prototype.write = function(datachunk) {
   }else{
     logger.error('Radio commanded to write without stream attached');
   }
-  datachunk = null;
+  // datachunk = null;
 };
 
 // write expected Buffer that send to every Client but doesn't record.
@@ -199,7 +199,7 @@ Radio.prototype.send = function(datachunk) {
     ele.pendingList = appendToPendings(new RadioRAMChunk(datachunk), ele.pendingList);
   });
 
-  datachunk = null;
+  // datachunk = null;
 };
 
 // write expected Buffer that send to one specific Client but doesn't record.
