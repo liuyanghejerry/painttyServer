@@ -178,6 +178,11 @@ function SocketClient(socket) {
   client['status'] = SocketClient.CLIENT_STATUS['INIT'];
   client['clientid'] = null;
   client['username'] = null;
+  try {
+    client['ip'] = socket.address()['address'];
+  } catch(err) {
+    //
+  }
 
   client.socket.on('close', function(){
     // no more output

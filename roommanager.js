@@ -426,6 +426,8 @@ function RoomManager(options) {
         self._ispubServerConnected = true;
         self.emit('listening');
       }).on('newclient', function(client) {
+        logger.info(client['ip']);
+        
         client.on('manager', function(data) {
           var obj = common.stringToJson(data);
           logger.log(obj);
