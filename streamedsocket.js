@@ -179,7 +179,7 @@ function SocketClient(socket) {
   client['clientid'] = null;
   client['username'] = null;
   try {
-    client['ip'] = socket.localAddress;
+    client['ip'] = socket.remoteAddress;
   } catch(err) {
     //
   }
