@@ -7,6 +7,7 @@ var domain = require('domain');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs/updater'});
 var common = require('./common.js');
+var updateConf = require('./config/updateinfo.js');
 var Router = require("./router.js");
 var socket = require('./streamedsocket.js');
 
@@ -16,15 +17,10 @@ function Updater(options) {
 
   var defaultOptions = new function() {
     var self = this;
-    self.pubPort = 7071; // Default public port. This is used to connect with clients.
+    self.pubPort = updateConf['pubPort']; // Default public port. This is used to connect with clients.
     self.log = false; // Log or not
     self.defFile = './updateinfo.js';
-    self.changelog = {
-      'en': './changelog/en.changelog',
-      'zh_cn': './changelog/zh_cn.changelog',
-      'zh_tw': './changelog/zh_tw.changelog',
-      'ja': './changelog/ja.changelog'
-    };
+    self.changelog = updateConf['changelog'];
   };
 
   if (_.isUndefined(options)) {
@@ -40,14 +36,11 @@ function Updater(options) {
   // });
 
 self.currentVersion = {
-  version: '0.40',
+  version: updateConf['version'],
     // TODO: use a text file for changelog
     changelog: '',
-    level: 4,
-    url: {
-      'windows': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
-      'mac': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_Mac_0.4.zip'
-    }
+    level: updateConf['level'],
+    url: updateConf['url']
   };
 
   self.router = new Router();

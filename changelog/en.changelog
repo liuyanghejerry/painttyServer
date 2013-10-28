@@ -1,6 +1,3 @@
-* Auto-join room
-* Generate room URL
-* Cache
-* User-defined server
-* Room search
-* Slight changes on brush (Will be more changes on next upgrade)
+* Fix crush when entering rooms
+* Add an option in settings, which may step over replay
+* Update some translations on interface
