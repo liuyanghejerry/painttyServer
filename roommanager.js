@@ -51,7 +51,8 @@ function RoomManager(options) {
         callback(er);
       });
       db.once('open', callback);
-      mongoose.connect(globalConf['database']['connectionString']);
+      mongoose.connect(globalConf['database']['connectionString'],
+        globalConf['database']['options']);
     },
     'init_router': function(callback) {
       self.router = new Router();
