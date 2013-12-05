@@ -1,3 +1,2 @@
-* Fix crush when entering rooms
-* Add an option in settings, which may step over replay
-* Update some translations on interface
+* Tries to fix text error in some rare conditions by adding Chinese font
+* Updates updater server IP

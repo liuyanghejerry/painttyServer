@@ -1,6 +1,6 @@
 var ConfigObject = {
   pubPort: 7071,
-  version: '0.41',
+  version: '0.42',
   // TODO: use a text file for changelog
   changelog: {
     'en': './changelog/en.changelog',
