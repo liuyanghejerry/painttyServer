@@ -2,7 +2,10 @@ var ConfigObject = {
   mode: 'dev',
   dev: {
     database: {
-      connectionString: 'mongodb://localhost/paintty'
+      connectionString: 'mongodb://localhost/paintty',
+      options: {
+        keepAlive: 1
+      }
     },
     log: {
       enable: true,

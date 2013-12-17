@@ -51,7 +51,8 @@ function RoomManager(options) {
         callback(er);
       });
       db.once('open', callback);
-      mongoose.connect(globalConf['database']['connectionString']);
+      mongoose.connect(globalConf['database']['connectionString'],
+        globalConf['database']['options']);
     },
     'init_router': function(callback) {
       self.router = new Router();
@@ -426,6 +427,8 @@ function RoomManager(options) {
         self._ispubServerConnected = true;
         self.emit('listening');
       }).on('newclient', function(client) {
+        logger.info(client['ip']);
+        
         client.on('manager', function(data) {
           var obj = common.stringToJson(data);
           logger.log(obj);

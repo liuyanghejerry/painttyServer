@@ -1,6 +1,2 @@
-* Auto-join room
-* Generate room URL
-* Cache
-* User-defined server
-* Room search
-* Slight changes on brush (Will be more changes on next upgrade)
+* Tries to fix text error in some rare conditions by adding Chinese font
+* Updates updater server IP

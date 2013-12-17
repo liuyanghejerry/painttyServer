@@ -462,7 +462,7 @@ function Room(options) {
           setTimeout(function () {
             // room.socket.close();
             room.socket.listen(room.options.port, '::');
-          }, 1000);
+          }, 5000);
         }
       });
       room.socket.once('ready', function(){

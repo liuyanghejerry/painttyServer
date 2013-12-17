@@ -104,7 +104,9 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
     };
   }
   
-  while (true) {
+  var loop_time_ = 0;
+  // should be while(true), but in case we have some quirk conditions causing dead loop
+  while (loop_time_ < 255) {
     if(adapter._dataSize === 0){
       if (adapter._buf.length < 4){
         done();
@@ -141,6 +143,7 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
       adapter.emit('message', p_header['pack_type'], dataBlock, repacked);
     }
     adapter._dataSize = 0;
+    loop_time_++;
   }
   done();
 };
@@ -158,7 +161,7 @@ SocketClientDefines.PACK_TYPE = {
   'COMMAND': 0x1,
   'DATA': 0x2,
   'MESSAGE': 0x3,
-  'MASK': 0x3 // sepcial one, not really one of type but just a bit mask
+  'MASK': 0x3 // sepcial one, not really one of types but just a bit mask
 };
 
 SocketClientDefines.CLIENT_STATUS = {
@@ -178,6 +181,11 @@ function SocketClient(socket) {
   client['status'] = SocketClient.CLIENT_STATUS['INIT'];
   client['clientid'] = null;
   client['username'] = null;
+  try {
+    client['ip'] = socket.remoteAddress;
+  } catch(err) {
+    //
+  }
 
   client.socket.on('close', function(){
     // no more output
@@ -229,7 +237,10 @@ SocketClient.prototype.writeRaw = function(data, fn) {
   try {
     this.socket.write(data, fn);
   }catch(err){
-    //
+    // give it a chance to run callback
+    if (_.isFunction(fn)) {
+      fn();
+    }
   }
 }
 
