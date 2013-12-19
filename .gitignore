@@ -2,3 +2,4 @@
 *.msg
 *.heapsnapshot
 *.log
+node_modules/*

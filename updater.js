@@ -4,22 +4,45 @@ var numCPUs = require('os').cpus().length;
 var util = require("util");
 var fs = require('fs');
 var domain = require('domain');
+var express = require('express');
+var async = require('async');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs/updater'});
 var common = require('./common.js');
 var updateConf = require('./config/updateinfo.js');
 var Router = require("./router.js");
-var socket = require('./streamedsocket.js');
 
 function Updater(options) {
   events.EventEmitter.call(this);
   var self = this;
+  self.changelog = {};
+  function changelogCache (language, done) {
+    if (self.changelog[language]) {
+      return done(null, self.changelog[language]);
+    }
+
+    fs.readFile(
+      updateConf.changelog[language],
+      {
+        encoding: 'utf8',
+        flag: 'r'
+      },
+      function (err, data) {
+        if (err) {
+          logger.error(err);
+          done(err);
+        }
+        self.changelog[language] = data;
+        done(null, self.changelog[language]);
+      }
+    );
+  }
+
 
   var defaultOptions = new function() {
     var self = this;
     self.pubPort = updateConf['pubPort']; // Default public port. This is used to connect with clients.
     self.log = false; // Log or not
-    self.defFile = './updateinfo.js';
     self.changelog = updateConf['changelog'];
   };
 
@@ -29,14 +52,9 @@ function Updater(options) {
   self.options = _.defaults(options, defaultOptions);
 
   // TODO: dynamic change version info and download url, etc
-  // self.ConfWatcher = fs.watch(self.defFile, 
-  //   {persistent: false}, 
-  //   function(curr, prev) {
-  //   //
-  // });
 
-self.currentVersion = {
-  version: updateConf['version'],
+  self.currentVersion = {
+    version: updateConf['version'],
     // TODO: use a text file for changelog
     changelog: '',
     level: updateConf['level'],
@@ -45,74 +63,76 @@ self.currentVersion = {
 
   self.router = new Router();
 
-  self.router.reg('request', 'check', function(cli, obj) {
-    var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows';
-    var language = _.isString(obj['language']) && _.has(self.options.changelog, obj['language']) 
-    ? obj['language'].toLowerCase() : 'en';
-    fs.readFile(self.options.changelog[language], 
-      {
-        encoding: 'utf8',
-        flag: 'r'
+  function prepare_server() {
+    self.server = express();
+    self.server.use(express.compress());
+    self.server.use(express.json());
+    self.server.use(express.urlencoded());
+
+    self.server.post('/', function(req, res){
+      var obj = req.body;
+      var changelog = '';
+
+      async.auto({
+        'read_changelog': function (done) {
+          var language = _.isString(obj['language']) && _.has(self.options.changelog, obj['language']) 
+            ? obj['language'].toLowerCase() : 'en';
+
+          changelogCache(language, function (err, cl) {
+            changelog = cl;
+            done(null);
+          });
+        },
+        'combine_result': ['read_changelog', function (done) {
+          var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows';
+          var info = {
+            'version': self.currentVersion['version'],
+            'changelog': changelog,
+            'level': self.currentVersion['level'],
+            'url': self.currentVersion['url']['windows']
+          };
+
+          if (platform == 'windows x86' || platform == 'windows x64') {
+            info['url'] = self.currentVersion['url']['windows'];
+          }else if (platform == 'mac') {
+            info['url'] = self.currentVersion['url']['mac'];
+          };
+
+          var ret = {
+            response: 'version',
+            result: true,
+            'info': info
+          }
+
+          var body = common.jsonToString(ret);
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Content-Length', body.length);
+          res.end(body);
+        }]
       },
-      function (err, data) {
+      function (err) {
         if (err) {
-          logger.error(err);
-          cli.close();
-          return;
+          common.jsonToString({});
         }
-
-        var info = {
-          version: self.currentVersion['version'],
-          changelog: data,
-          level: self.currentVersion['level'],
-          url: self.currentVersion['url']['windows']
-        };
-
-        if (platform == 'windows x86' || platform == 'windows x64') {
-          info['url'] = self.currentVersion['url']['windows'];
-        }else if (platform == 'mac') {
-          info['url'] = self.currentVersion['url']['mac'];
-        };
-
-        var ret = {
-          response: 'version',
-          result: true,
-          'info': info
-        }
-
-        var jsString = JSON.stringify(ret);
-        cli.sendManagerPack(new Buffer(jsString));
       });
-  });
+    });
+  }
 
   var d = domain.create();
   d.on('error', function(er) {
-    logger.error('Error in pubServer of Updater:', er);
-  });
-
-  d.run(function() {
-    self.pubServer = new socket.SocketServer();
-
-    self.pubServer.on('newclient', function(client){
-      client.on('manager', function(data){
-        var obj = common.stringToJson(data);
-        logger.log(obj);
-        self.router.message(client, obj);
-      });
-    });
-  });
+    logger.error('Error in express server of Updater:', er);
+  })
+  .run(prepare_server);
 }
 
 util.inherits(Updater, events.EventEmitter);
 
-// module.exports = Updater;
-
 Updater.prototype.start = function() {
-  this.pubServer.listen(this.options.pubPort, '::');
+  this.server.listen(updateConf.pubPort, '::');
 };
 
 Updater.prototype.stop = function() {
-  this.pubServer.close();
+  this.server.close();
 };
 
 function run() {
@@ -135,6 +155,6 @@ function run() {
     upd.start();
   }
 
-};
+}
 
 run();

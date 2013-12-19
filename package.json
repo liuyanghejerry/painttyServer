@@ -33,10 +33,11 @@
     "toobusy": "~0.2.3",
     "tracer": "~0.5.1",
     "underscore": "~1.4.4",
-    "mongoose": "~3.6.11"
+    "mongoose": "~3.6.11",
+    "express": "~3.4.7"
   },
-  "engines" : { 
-	  "node" : ">=0.10.10" 
+  "engines": {
+    "node": ">=0.10.10"
   },
   "devDependencies": {},
   "scripts": {
