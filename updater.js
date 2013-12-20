@@ -10,7 +10,6 @@ var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs/updater'});
 var common = require('./common.js');
 var updateConf = require('./config/updateinfo.js');
-var Router = require("./router.js");
 
 function Updater(options) {
   events.EventEmitter.call(this);
@@ -46,7 +45,7 @@ function Updater(options) {
     self.changelog = updateConf['changelog'];
   };
 
-  if (_.isUndefined(options)) {
+  if (!options) {
     var options = {};
   }
   self.options = _.defaults(options, defaultOptions);
@@ -61,17 +60,16 @@ function Updater(options) {
     url: updateConf['url']
   };
 
-  self.router = new Router();
-
   function prepare_server() {
     self.server = express();
     self.server.use(express.compress());
     self.server.use(express.json());
     self.server.use(express.urlencoded());
 
-    self.server.post('/', function(req, res){
+    self.server.post('*', function (req, res) {
       var obj = req.body;
       var changelog = '';
+      var body = '';
 
       async.auto({
         'read_changelog': function (done) {
@@ -103,17 +101,63 @@ function Updater(options) {
             result: true,
             'info': info
           }
-
-          var body = common.jsonToString(ret);
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Content-Length', body.length);
-          res.end(body);
+          body = common.jsonToString(ret);
+          done(null);
         }]
       },
       function (err) {
         if (err) {
-          common.jsonToString({});
+          logger.error(err);
         }
+        res.setHeader('Content-Type', 'application/json');
+        // NOTE: DO NOT use body.length, 
+        // because body.length produces amount of characters, not bytes,
+        // which may lead incorrect size when we have non-ascii characters.
+        res.setHeader('Content-Length', Buffer.byteLength(body, 'utf-8'));
+        res.end(body);
+      });
+    });
+
+    self.server.get('*', function (req, res) {
+      var changelog = '';
+      var body = '';
+
+      async.auto({
+        'read_changelog': function (done) {
+          var language = 'en';
+          changelogCache(language, function (err, cl) {
+            changelog = cl;
+            done(null);
+          });
+        },
+        'combine_result': ['read_changelog', function (done) {
+          var platform = 'windows x86';
+          var info = {
+            'version': self.currentVersion['version'],
+            'changelog': changelog,
+            'level': self.currentVersion['level'],
+            'url': self.currentVersion['url'][platform]
+          };
+
+          var ret = {
+            response: 'version',
+            result: true,
+            'info': info
+          }
+          body = common.jsonToString(ret);
+          done(null);
+        }]
+      },
+      function (err) {
+        if (err) {
+          logger.error(err);
+        }
+        res.setHeader('Content-Type', 'application/json');
+        // NOTE: DO NOT use body.length, 
+        // because body.length produces amount of characters, not bytes,
+        // which may lead incorrect size when we have non-ascii characters.
+        res.setHeader('Content-Length', Buffer.byteLength(body, 'utf-8'));
+        res.end(body);
       });
     });
   }
