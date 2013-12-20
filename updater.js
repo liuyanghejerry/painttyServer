@@ -41,7 +41,6 @@ function Updater(options) {
   var defaultOptions = new function() {
     var self = this;
     self.pubPort = updateConf['pubPort']; // Default public port. This is used to connect with clients.
-    self.log = false; // Log or not
     self.changelog = updateConf['changelog'];
   };
 
