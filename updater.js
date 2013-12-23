@@ -69,11 +69,11 @@ function Updater(options) {
       var obj = req.body;
       var changelog = '';
       var body = '';
+      console.log(obj);
 
       async.auto({
         'read_changelog': function (done) {
-          var language = _.isString(obj['language']) && _.has(self.options.changelog, obj['language']) 
-            ? obj['language'].toLowerCase() : 'en';
+          var language = _.isString(obj['language']) ? obj['language'].toLowerCase() : 'en';
 
           changelogCache(language, function (err, cl) {
             changelog = cl;
@@ -81,18 +81,12 @@ function Updater(options) {
           });
         },
         'combine_result': ['read_changelog', function (done) {
-          var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows';
+          var platform = _.isString(obj['platform']) ? obj['platform'].toLowerCase() : 'windows x86';
           var info = {
             'version': self.currentVersion['version'],
             'changelog': changelog,
             'level': self.currentVersion['level'],
-            'url': self.currentVersion['url']['windows']
-          };
-
-          if (platform == 'windows x86' || platform == 'windows x64') {
-            info['url'] = self.currentVersion['url']['windows'];
-          }else if (platform == 'mac') {
-            info['url'] = self.currentVersion['url']['mac'];
+            'url': self.currentVersion['url'][platform] ? self.currentVersion['url'][platform] : ''
           };
 
           var ret = {
@@ -101,6 +95,7 @@ function Updater(options) {
             'info': info
           }
           body = common.jsonToString(ret);
+          console.log(body);
           done(null);
         }]
       },
