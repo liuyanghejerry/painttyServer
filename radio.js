@@ -45,7 +45,7 @@ function Radio(options) {
   async.auto({
     'create_file': function(callback){
       if (self.options.recovery !== true) {
-        fs.truncate(self.options.filename, 0, callback);
+        fs.writeFile(self.options.filename, '', callback);
       }else{
         callback();
       }
