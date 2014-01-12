@@ -471,25 +471,23 @@ Notice, notification IS HTML.
 
 	{
 		action: "drawpoint",
-		info: {
-			point: {
-				x: 10,
-				y: 98,
+		point: {
+			x: 10,
+			y: 98,
+		},
+		brush: {
+			width: 10,
+			color: {
+				red: 0,
+				green: 0,
+				blue: 0
 			},
-			brush: {
-				width: 10,
-				color: {
-					red: 0,
-					green: 0,
-					blue: 0
-				},
-				name: "Brush"
-			},
-			pressure: 0.74,
-			layer: "layer0",
-			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
-			name: "someone"
-		}
+			name: "Brush"
+		},
+		pressure: 0.74,
+		layer: "layer0",
+		userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+		name: "someone"
 	}
 
 Note, `pressure` as a real number, should always be a double.
@@ -498,122 +496,75 @@ Note, `pressure` as a real number, should always be a double.
 	
 	{
 		action: "drawline",
-		info: {
-			start: {
-				x: 100,
-				y: 32
+		start: {
+			x: 100,
+			y: 32
+		},
+		end: {
+			x: 107,
+			y: 35
+		},
+		brush: {
+			width: 10,
+			color: {
+				red: 255,
+				green: 255,
+				blue: 255
 			},
-			end: {
-				x: 107,
-				y: 35
-			},
-			brush: {
-				width: 10,
-				color: {
-					red: 255,
-					green: 255,
-					blue: 255
-				},
-				name: "Brush"
-			},
-			pressure: 0.74,
-			layer: "layer1",
-			userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
-			name: "someone"
-		}
+			name: "Brush"
+		},
+		pressure: 0.74,
+		layer: "layer1",
+		userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
+		name: "someone"
 	}
 	
 Note, `pressure` as a real number, should always be a double.
 
 #### Block
 
-As of Mr.Paint 0.4, client may choose to use `block` to send bunch of paint actions. This may save bandwidth.
+`block` is meant to replace `drawpoint` and `drawline` somehow.
 
-Single block may contains 2 to 10 paint actions, each of them is either `drawline` or `drawpoint`.
+Single block may contains one `drawpoint` action and several `drawline` actions. Generally, each block is generated when user draw once, which is pressing, moving and releasing. Some of the info can be omitted, since it won't change within one draw action.
 
 Example:
 
 	{
 		action: "block",
+		layer: "layer0",
+		userid: "46b67a67f5c4369399704b6e56a05a8697d7c4b1",
+		name: "someone",
 		block: [
 			{
-				action: "drawpoint",
-				info: {
-					point: {
-						x: 10,
-						y: 98,
-					},
-					brush: {
-						width: 10,
-						color: {
-							red: 0,
-							green: 0,
-							blue: 0
-						},
-						name: "Brush"
-					},
-					pressure: 0.74,
-					layer: "layer0",
-					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
-					name: "someone"
-				}
-			},
-			{
-				action: "drawline",
-				info: {
-					start: {
-						x: 100,
-						y: 32
-					},
-					end: {
-						x: 107,
-						y: 35
-					},
-					brush: {
-						width: 10,
-						color: {
-							red: 255,
-							green: 255,
-							blue: 255
-						},
-						name: "Brush"
-					},
-					pressure: 0.74,
-					layer: "layer1",
-					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
-					name: "someone"
-				}
-			},
-			{
-				action: "drawline",
-				info: {
-					start: {
-						x: 107,
-						y: 35
-					},
-					end: {
-						x: 120,
-						y: 37
-					},
-					brush: {
-						width: 10,
-						color: {
-							red: 255,
-							green: 255,
-							blue: 255
-						},
-						name: "Brush"
-					},
-					pressure: 0.52,
-					layer: "layer1",
-					userid: '46b67a67f5c4369399704b6e56a05a8697d7c4b1',
-					name: "someone"
-				}
+				x: 10,
+				y: 98,
+				pressure: 0.74
+			},{
+				x: 15,
+				y: 70,
+				pressure: 0.52
+			},{
+				x: 16,
+				y: 75,
+				pressure: 0.43
+			},{
+				x: 20,
+				y: 77,
+				pressure: 0.45
 			}
-		]
+		],
+		brush: {
+			width: 10,
+			color: {
+				red: 0,
+				green: 0,
+				blue: 0
+			},
+			name: "Brush"
+		},
 	}
 
-Note, blocks should never contains blocks.
+Brush info is gethered as usual, while `drawpoint` and `drawline` is mixed. First set of points is always a `drawpoint` action, and all other sets of points are `drawline`.
 
 #### Text Message
 
