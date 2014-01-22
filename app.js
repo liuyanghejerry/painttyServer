@@ -11,6 +11,7 @@ var common = require('./common.js');
 var Router = require("./router.js");
 var RoomManager = require('./roommanager.js');
 var socket = require('./streamedsocket.js');
+var CpuCare = require('./cpucare.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
 // var express = require('express');
@@ -82,8 +83,17 @@ if (cluster.isMaster) {
         worker.memberId = memberId;
         worker.on('message', function(msg) {
           _.each(cluster.workers, function(ele, index, list) {
-                ele.send(msg);
+            ele.send(msg);
           });
+        });
+        // attach cpu usage monitor
+        var c_care = new CpuCare({
+          target: worker.process.pid,
+          mark: 90,
+          cycle: 5*60*1000 // check per 5 min
+        });
+        c_care.once('processkilled', function(killed_info) {
+          logger.warn('worker is killed because of cpu usage', killed_info);
         });
       }
 
