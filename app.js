@@ -1,6 +1,5 @@
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
-// var numCPUs = 4;
 var heapdump = require('heapdump');
 var _ = require('underscore');
 var domain = require('domain');
@@ -14,8 +13,6 @@ var socket = require('./streamedsocket.js');
 var CpuCare = require('./cpucare.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
-// var express = require('express');
-// var httpServer = express();
 
 // var agent = require('webkit-devtools-agent');
 
@@ -36,44 +33,46 @@ if (cluster.isMaster) {
       });
     },
     'init_local_socket': ['init_db', function(callback){
-      router = new Router();
+      // TODO: turn off local control for a while
+      // router = new Router();
 
-      router.reg('request', 'broadcast', function(cli, obj){
-        var msg = obj['msg'];
-        if (!_.isString(msg)) {
-          var ret = {
-            'response': 'broadcast',
-            'result': false
-          };
-          return;
-        };
-        var send_to_workers = {
-          message: 'broadcast',
-          content: msg
-        };
-        var w = cluster.workers;
-        if (w[0]) {
-          w[0].send(send_to_workers);
-        };
+      // router.reg('request', 'broadcast', function(cli, obj){
+      //   var msg = obj['msg'];
+      //   if (!_.isString(msg)) {
+      //     var ret = {
+      //       'response': 'broadcast',
+      //       'result': false
+      //     };
+      //     return;
+      //   };
+      //   var send_to_workers = {
+      //     message: 'broadcast',
+      //     content: msg
+      //   };
+      //   var w = cluster.workers;
+      //   if (w[0]) {
+      //     w[0].send(send_to_workers);
+      //   };
         
-        var ret = {
-          'response': 'broadcast',
-          'result': true
-        };
-        var jsString = common.jsonToString(ret);
-        cli.sendData(cli, new Buffer(jsString));
-      });
+      //   var ret = {
+      //     'response': 'broadcast',
+      //     'result': true
+      //   };
+      //   var jsString = common.jsonToString(ret);
+      //   cli.sendData(cli, new Buffer(jsString));
+      // });
 
-      localSocket = new socket.SocketServer({'record': false, 'keepAlive': false});
 
-      localSocket.on('message', function(client, data) {
-        var obj = common.stringToJson(data);
-        logger.log(obj);
-        self.router.message(client, obj);
-      }).on('error', function(err){
-        logger.error(err);
-      });
-      localSocket.listen('56565', '127.0.0.1');
+      // localSocket = new socket.SocketServer({'record': false, 'keepAlive': false});
+
+      // localSocket.on('message', function(client, data) {
+      //   var obj = common.stringToJson(data);
+      //   logger.log(obj);
+      //   self.router.message(client, obj);
+      // }).on('error', function(err){
+      //   logger.error(err);
+      // });
+      // localSocket.listen('56565', '127.0.0.1');
       callback();
     }],
     'fork_child': ['init_local_socket', function(callback){
@@ -171,24 +170,3 @@ if (cluster.isMaster) {
   });
 }
 
-
-// httpServer.get('/', function(req, res) {
-    // var list = [];
-    // _.each(roomManager.roomObjs, function(item) {
-        // if(_.isUndefined(item)) return;
-        // var r = {
-            // cmdport: item.cmdSocket.address().port,
-            // // serveraddress: roomManager.pubServer.address().address,
-            // maxload: item.options.maxLoad,
-            // currentload: item.currentLoad(),
-            // name: item.options.name,
-            // 'private': item.options.password.length > 0
-        // };
-        // list.push(r);
-    // });
-    // list.push(roomManager.pubServer.address());
-    // var m = JSON.stringify(list);
-    // res.send('<h2>Hello from Mr.Paint</h2><p>Here is some debug info: </p>'+m);
-// });
-
-// httpServer.listen(39797);
