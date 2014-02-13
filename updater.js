@@ -8,7 +8,7 @@ var express = require('express');
 var async = require('async');
 var _ = require('underscore');
 var logger = require('tracer').dailyfile({root:'./logs/updater'});
-var common = require('./common.js');
+var common = require('./libs/common.js');
 var updateConf = require('./config/updateinfo.js');
 
 function Updater(options) {
