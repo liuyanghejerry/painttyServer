@@ -362,6 +362,8 @@ function SocketServer(options) {
     });
   }
 
+  server.unalive = false; // indicates server is still alive
+
   server.on('connection', function(cli) {
     cli.setKeepAlive(server.options.keepAlive);
     cli.setNoDelay(true);
@@ -406,6 +408,9 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
   var self = this;
+  if(!self.unalive) {
+    return;
+  }
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
     if ( self.radio.isClientInRadio(client_ref) ) {
       var datapack = protocolPack(result);
@@ -418,6 +423,9 @@ SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
 
 SocketServer.prototype.broadcastData = function (data, pack_type) {
   var server = this;
+  if(!self.unalive) {
+    return;
+  }
   // TODO: need to change for new interface of SocketClient
   var PT = SocketClient.PACK_TYPE;
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
@@ -427,11 +435,17 @@ SocketServer.prototype.broadcastData = function (data, pack_type) {
 };
 
 SocketServer.prototype.kick = function(client_ref) {
+  if(!this.unalive) {
+    return;
+  }
   client_ref.close();
 };
 
 SocketServer.prototype.pruneArchive = function() {
   var self = this;
+  if(!self.unalive) {
+    return;
+  }
   if (self.radio) {
     self.radio.prune();
     self.radio.once('pruned', function(){
@@ -462,6 +476,7 @@ SocketServer.prototype.closeServer = function(delete_archive) {
     self.radio.cleanup();
     self.radio = null;
   }
+  self.unalive = true;
   self.close();
 };
 
