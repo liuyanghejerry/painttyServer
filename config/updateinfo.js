@@ -10,9 +10,9 @@ var ConfigObject = {
   },
   level: 2,
   url: {
-    'windows x86': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
+    'windows x86': 'http://mrspaint.com/test/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
     'windows x64': 'http://mrspaint.com/test/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.4.zip',
-    'mac': 'http://download.mrspaint.com/0.4/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_Mac_0.4.zip'
+    'mac': 'http://mrspaint.com/test/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_Mac_0.4.zip'
   },
   updater: {
     version: 20
