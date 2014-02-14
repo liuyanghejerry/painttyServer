@@ -54,6 +54,7 @@ function Room(options) {
 
   room.status = 'init';
   room.router = new Router();
+  room.heartbeatTimer = null;
 
   function roomTimeout(room_ref) {
     var stampDiff = Date.now() - room_ref.options.lastCheckoutTimestamp;
@@ -237,6 +238,7 @@ function Room(options) {
       room.socket.once('ready', function(){
         room.options.archiveSign = room.socket.options['archiveSign'];
         room.socket.listen(room.options.port, '::');
+        room.heartbeatTimer = setInterval(room.checkHeartbeat, 10*1000);
       });
     }]
   }, function(er){
@@ -544,6 +546,33 @@ function proc_heartbeat(cli, obj)
 
 util.inherits(Room, events.EventEmitter);
 
+function checkClientHeartbeat(cli)
+{
+  if (!cli) {
+    return;
+  }
+  var client_time = parseInt(cli['last_heartbeat'], 10);
+
+  if (!TypeChecker.isNumber(cli['last_heartbeat'])) {
+    return;
+  }
+  var now = parseInt(Date.now() / 1000, 10);
+  if (now - client_time > 60*2) {
+    try {
+      cli.close();
+    } catch (e){
+      logger.error(e);
+    }
+    
+  }
+}
+
+Room.prototype.checkHeartbeat = function() {
+  if(this.socket && this.socket.clients) {
+    this.socket.clients.forEach(checkClientHeartbeat);
+  }
+};
+
 Room.prototype.port = function() {
   return this.socket.address().port;
 };
@@ -570,11 +599,15 @@ Room.prototype.close = function() {
   logger.log('Room', self.options.name, 'is closed.');
   if (self.uploadCurrentInfoTimer) {
     clearInterval(self.uploadCurrentInfoTimer);
-  };
+  }
 
   if (self.checkoutTimer) {
     clearInterval(self.checkoutTimer);
-  };
+  }
+
+  if (self.heartbeatTimer) {
+    clearInterval(self.heartbeatTimer);
+  }
 
   process.nextTick(function(){
     self.emit('close');
