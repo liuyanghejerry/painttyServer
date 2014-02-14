@@ -408,7 +408,7 @@ util.inherits(SocketServer, net.Server);
 
 SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
   var self = this;
-  if(!self.unalive) {
+  if(self.unalive) {
     return;
   }
   bufferToPack(data, {'compress': true, 'pack_type': pack_type}, function(result) {
@@ -423,7 +423,7 @@ SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
 
 SocketServer.prototype.broadcastData = function (data, pack_type) {
   var server = this;
-  if(!self.unalive) {
+  if(self.unalive) {
     return;
   }
   // TODO: need to change for new interface of SocketClient
@@ -435,7 +435,7 @@ SocketServer.prototype.broadcastData = function (data, pack_type) {
 };
 
 SocketServer.prototype.kick = function(client_ref) {
-  if(!this.unalive) {
+  if(this.unalive) {
     return;
   }
   client_ref.close();
@@ -443,7 +443,7 @@ SocketServer.prototype.kick = function(client_ref) {
 
 SocketServer.prototype.pruneArchive = function() {
   var self = this;
-  if(!self.unalive) {
+  if(self.unalive) {
     return;
   }
   if (self.radio) {
