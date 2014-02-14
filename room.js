@@ -293,7 +293,7 @@ function proc_login(cli, obj)
       errcode: 301
     };
     logger.log(ret);
-    cli.sendCommandPack(ret);
+    r_room.sendCommandTo(cli, ret);
     return;
   }
   // password check
@@ -569,7 +569,7 @@ function checkClientHeartbeat(cli)
 
 Room.prototype.checkHeartbeat = function() {
   if(this.socket && this.socket.clients) {
-    this.socket.clients.forEach(checkClientHeartbeat);
+    // this.socket.clients.forEach(checkClientHeartbeat);
   }
 };
 
