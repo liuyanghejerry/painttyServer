@@ -127,245 +127,13 @@ function Room(options) {
       callback();
     }],
     'install_router': ['gen_fileNames', function(callback){
-      room.router.reg('request', 'login',
-      function(cli, obj) {
-        var r_room = room;
-        // name check
-        if (!obj['name'] || !_.isString(obj['name'])) {
-          var ret = {
-            response: 'login',
-            result: false,
-            errcode: 301
-          };
-          logger.log(ret);
-          cli.sendCommandPack(ret);
-          return;
-        }
-        // password check
-        if (r_room.options.password.length > 0) {
-          if (!obj['password'] || !_.isString(obj['password']) || obj['password'] != r_room.options.password) {
-            var ret = {
-              response: 'login',
-              result: false,
-              errcode: 302
-            };
-            logger.log(ret);
-            r_room.sendCommandTo(cli, ret);
-            return;
-          }
-        }
-
-        // if server is too busy
-        if (toobusy()) {
-          var ret = {
-            response: 'login',
-            result: false,
-            errcode: 305
-          };
-          logger.log(ret);
-          r_room.sendCommandTo(cli, ret);
-          return;
-        };
-        // send info
-        var ret = {
-          response: 'login',
-          result: true,
-          info: {
-            'name': r_room.options.name,
-            'historysize': r_room.socket.archiveLength(),
-            'size': r_room.options.canvasSize,
-            'clientid': function() {
-              var hash = crypto.createHash('sha1');
-              hash.update(r_room.options.name + obj['name'] + r_room.options.salt + (new Date()).getTime(), 'utf8');
-              hash = hash.digest('hex');
-              if (cli) {
-                cli['clientid'] = hash;
-              }
-              return hash;
-            } ()
-          }
-        };
-        logger.log(ret);
-        r_room.sendCommandTo(cli, ret);
-
-        cli['username'] = obj['name'];
-        process.nextTick(function(){
-          cli.emit('login');
-        });
-        return;
-      },
-      room).reg('request', 'close',
-      function(cli, obj) {
-        var r_room = room;
-        // check signed key
-        if (!obj['key'] || !_.isString(obj['key'])) {
-          var ret = {
-            response: 'close',
-            result: false
-          };
-          logger.log(ret);
-          r_room.sendCommandTo(cli, ret);;
-        } else {
-          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-            var ret = {
-              response: 'close',
-              result: true
-            };
-            logger.log(ret);
-            r_room.sendCommandTo(cli, ret);
-            var ret_all = {
-              action: 'close',
-              'info': {
-                reason: 501
-              }
-            };
-            jsString = common.jsonToString(ret_all);
-            logger.log(jsString);
-            r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
-            r_room.options.emptyclose = true;
-            r_room.options.permanent = false;
-          }
-        }
-      },
-      room).reg('request', 'clearall',
-      function(cli, obj) {
-        var r_room = room;
-        if (!obj['key'] || !_.isString(obj['key'])) {
-          var ret = {
-            response: 'clearall',
-            result: false
-          };
-          r_room.sendCommandTo(cli, ret);
-        } else {
-          if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-            r_room.socket.pruneArchive();
-            r_room.socket.once('archivecleared', function(new_sign){
-              r_room.options.archiveSign = new_sign;
-              var ret = {
-                response: 'clearall',
-                result: true
-              };
-              r_room.sendCommandTo(cli, ret);
-              var ret_all = {
-                action: 'clearall',
-                'signature': new_sign
-              };
-              jsString = common.jsonToString(ret_all);
-              r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
-              r_room.emit('newarchivesign', new_sign);
-            });
-          } else {
-            var ret = {
-              response: 'clearall',
-              result: false
-            };
-            r_room.sendCommandTo(cli, ret);
-          }
-        }
-      },
-      room).reg('request', 'onlinelist',
-      function(cli, obj) {
-        var r_room = room;
-        if (!obj['clientid']) {
-          return;
-        }
-        logger.log('onlinelist request by', obj['clientid']);
-        if (!_.findWhere(r_room.socket.clients, {
-          'clientid': obj['clientid']
-        })) {
-          return;
-        }
-
-        var people = [];
-        _.each(r_room.socket.clients,
-        function(va) {
-          if (va['username'] && va['clientid']) {
-            people.push({
-              'name': va['username'],
-              'clientid': va['clientid']
-            });
-          }
-        });
-        if (!people.length) {
-          return;
-        }
-
-        var ret = {
-          response: 'onlinelist',
-          result: true,
-          onlinelist: people
-        };
-        logger.log(ret);
-        r_room.sendCommandTo(cli, ret);
-      },
-      room).reg('request', 'checkout',
-      function(cli, obj) {
-        var r_room = room;
-        if (!obj['key'] || !_.isString(obj['key'])) {
-          var ret = {
-            response: 'checkout',
-            result: false,
-            errcode: 701
-          };
-          logger.log(ret);
-          r_room.socket.sendCommandTo(cli, ret);
-        }
-        if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
-          r_room.options.lastCheckoutTimestamp = Date.now();
-          r_room.emit('checkout');
-          var ret = {
-            response: 'checkout',
-            result: true,
-            cycle: r_room.options.expiration ? r_room.options.expiration: 0
-          };
-          logger.log(ret);
-          r_room.sendCommandTo(cli, ret);
-        }
-      },
-      room).reg('request', 'archivesign',
-      function(cli, obj) {
-        if (cli['anonymous_login']) {
-          var ret = {
-            response: 'archivesign',
-            'signature': room.options.archiveSign,
-            result: true
-          };
-          logger.log(ret);
-          room.sendCommandTo(cli, ret);
-        }
-      }).reg('request', 'archive', 
-      function(cli, obj) {
-        if (cli['anonymous_login']) {
-          var realLength = room.socket.archiveLength()
-          var startPos = 0;
-          if (obj['start']) {
-            startPos = parseInt(obj['start'], 10);
-          }
-          var datalength = realLength - startPos;
-          if (obj['datalength']) {
-            datalength = parseInt(obj['datalength'], 10);
-            datalength = (startPos+datalength > realLength)? datalength:realLength-startPos;
-          }
-
-          if (startPos > realLength) {
-            var ret = {
-              response: 'archive',
-              result: false,
-              errcode: 901
-            };
-          }else{
-            var ret = {
-              response: 'archive',
-              'signature': room.options.archiveSign,
-              'datalength': datalength,
-              result: true
-            };
-            logger.log(ret);
-            room.sendCommandTo(cli, ret);
-            room.socket.joinRadio(cli, startPos, datalength);
-          }
-        }
-      });
+      room.router.reg('request', 'login', proc_login, room)
+      .reg('request', 'close', proc_close, room)
+      .reg('request', 'clearall', proc_clearall, room)
+      .reg('request', 'onlinelist', proc_onlinelist, room)
+      .reg('request', 'checkout', proc_checkout, room)
+      .reg('request', 'archivesign', proc_archivesign, room)
+      .reg('request', 'archive',  proc_archive, room);
       callback();
     }],
     'init_socket': ['install_router', function(callback){
@@ -509,6 +277,249 @@ function Room(options) {
     }
   });
 
+}
+
+function proc_login(cli, obj)
+{
+  var r_room = this;
+  // name check
+  if (!obj['name'] || !_.isString(obj['name'])) {
+    var ret = {
+      response: 'login',
+      result: false,
+      errcode: 301
+    };
+    logger.log(ret);
+    cli.sendCommandPack(ret);
+    return;
+  }
+  // password check
+  if (r_room.options.password.length > 0) {
+    if (!obj['password'] || !_.isString(obj['password']) || obj['password'] != r_room.options.password) {
+      var ret = {
+        response: 'login',
+        result: false,
+        errcode: 302
+      };
+      logger.log(ret);
+      r_room.sendCommandTo(cli, ret);
+      return;
+    }
+  }
+
+  // if server is too busy
+  if (toobusy()) {
+    var ret = {
+      response: 'login',
+      result: false,
+      errcode: 305
+    };
+    logger.log(ret);
+    r_room.sendCommandTo(cli, ret);
+    return;
+  };
+  // send info
+  var ret = {
+    response: 'login',
+    result: true,
+    info: {
+      'name': r_room.options.name,
+      'historysize': r_room.socket.archiveLength(),
+      'size': r_room.options.canvasSize,
+      'clientid': function() {
+        var hash = crypto.createHash('sha1');
+        hash.update(r_room.options.name + obj['name'] + r_room.options.salt + (new Date()).getTime(), 'utf8');
+        hash = hash.digest('hex');
+        if (cli) {
+          cli['clientid'] = hash;
+        }
+        return hash;
+      } ()
+    }
+  };
+  logger.log(ret);
+  r_room.sendCommandTo(cli, ret);
+
+  cli['username'] = obj['name'];
+  process.nextTick(function(){
+    cli.emit('login');
+  });
+  return;
+}
+function proc_close(cli, obj)
+{
+  var r_room = this;
+  // check signed key
+  if (!obj['key'] || !_.isString(obj['key'])) {
+    var ret = {
+      response: 'close',
+      result: false
+    };
+    logger.log(ret);
+    r_room.sendCommandTo(cli, ret);;
+  } else {
+    if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
+      var ret = {
+        response: 'close',
+        result: true
+      };
+      logger.log(ret);
+      r_room.sendCommandTo(cli, ret);
+      var ret_all = {
+        action: 'close',
+        'info': {
+          reason: 501
+        }
+      };
+      jsString = common.jsonToString(ret_all);
+      logger.log(jsString);
+      r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
+      r_room.options.emptyclose = true;
+      r_room.options.permanent = false;
+    }
+  }
+}
+function proc_clearall(cli, obj)
+{
+  var r_room = this;
+  if (!obj['key'] || !_.isString(obj['key'])) {
+    var ret = {
+      response: 'clearall',
+      result: false
+    };
+    r_room.sendCommandTo(cli, ret);
+  } else {
+    if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
+      r_room.socket.pruneArchive();
+      r_room.socket.once('archivecleared', function(new_sign){
+        r_room.options.archiveSign = new_sign;
+        var ret = {
+          response: 'clearall',
+          result: true
+        };
+        r_room.sendCommandTo(cli, ret);
+        var ret_all = {
+          action: 'clearall',
+          'signature': new_sign
+        };
+        jsString = common.jsonToString(ret_all);
+        r_room.socket.broadcastData(new Buffer(jsString), SocketClient.PACK_TYPE['COMMAND']);
+        r_room.emit('newarchivesign', new_sign);
+      });
+    } else {
+      var ret = {
+        response: 'clearall',
+        result: false
+      };
+      r_room.sendCommandTo(cli, ret);
+    }
+  }
+}
+function proc_onlinelist(cli, obj)
+{
+  var r_room = this;
+  if (!obj['clientid']) {
+    return;
+  }
+  logger.log('onlinelist request by', obj['clientid']);
+  if (!_.findWhere(r_room.socket.clients, {
+    'clientid': obj['clientid']
+  })) {
+    return;
+  }
+
+  var people = [];
+  _.each(r_room.socket.clients,
+  function(va) {
+    if (va['username'] && va['clientid']) {
+      people.push({
+        'name': va['username'],
+        'clientid': va['clientid']
+      });
+    }
+  });
+  if (!people.length) {
+    return;
+  }
+
+  var ret = {
+    response: 'onlinelist',
+    result: true,
+    onlinelist: people
+  };
+  logger.log(ret);
+  r_room.sendCommandTo(cli, ret);
+}
+function proc_checkout(cli, obj)
+{
+  var r_room = this;
+  if (!obj['key'] || !_.isString(obj['key'])) {
+    var ret = {
+      response: 'checkout',
+      result: false,
+      errcode: 701
+    };
+    logger.log(ret);
+    r_room.socket.sendCommandTo(cli, ret);
+  }
+  if (obj['key'].toLowerCase() == r_room.signed_key.toLowerCase()) {
+    r_room.options.lastCheckoutTimestamp = Date.now();
+    r_room.emit('checkout');
+    var ret = {
+      response: 'checkout',
+      result: true,
+      cycle: r_room.options.expiration ? r_room.options.expiration: 0
+    };
+    logger.log(ret);
+    r_room.sendCommandTo(cli, ret);
+  }
+}
+function proc_archivesign(cli, obj)
+{
+  var r_room = this;
+  if (cli['anonymous_login']) {
+    var ret = {
+      response: 'archivesign',
+      'signature': r_room.options.archiveSign,
+      result: true
+    };
+    logger.log(ret);
+    r_room.sendCommandTo(cli, ret);
+  }
+}
+function proc_archive(cli, obj)
+{
+  var r_room = this;
+  if (cli['anonymous_login']) {
+    var realLength = r_room.socket.archiveLength()
+    var startPos = 0;
+    if (obj['start']) {
+      startPos = parseInt(obj['start'], 10);
+    }
+    var datalength = realLength - startPos;
+    if (obj['datalength']) {
+      datalength = parseInt(obj['datalength'], 10);
+      datalength = (startPos+datalength > realLength)? datalength:realLength-startPos;
+    }
+
+    if (startPos > realLength) {
+      var ret = {
+        response: 'archive',
+        result: false,
+        errcode: 901
+      };
+    }else{
+      var ret = {
+        response: 'archive',
+        'signature': r_room.options.archiveSign,
+        'datalength': datalength,
+        result: true
+      };
+      logger.log(ret);
+      r_room.sendCommandTo(cli, ret);
+      r_room.socket.joinRadio(cli, startPos, datalength);
+    }
+  }
 }
 
 util.inherits(Room, events.EventEmitter);

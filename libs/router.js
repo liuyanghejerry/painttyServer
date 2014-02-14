@@ -21,11 +21,13 @@ Router.prototype.reg = function(rule, request, handler, enviroment) {
     if ( !_.isString(rule) || !_.isString(request) || !_.isFunction(handler) ) {
         return;
     };
-    if(enviroment) {
-        self.env = enviroment;
-    }
 
-    var newRule = {'rule': rule, 'request': request, 'handler': handler};
+    var newRule = {
+        'rule': rule, 
+        'request': request, 
+        'handler': handler,
+        'enviroment': enviroment
+    };
     self.table.push(newRule);
     return self;
 }
@@ -46,7 +48,10 @@ Router.prototype.message = function(client, msg) {
             var request = msg[ele];
             if (self.table[index]['request'] == request) {
                 if (self.env) {
-                    _.bind(self.table[index]['handler'], self.env, client, msg)();
+                    _.bind(self.table[index]['handler'], 
+                        self.table[index]['enviroment'], 
+                        client, 
+                        msg)();
                 }else{
                     self.table[index]['handler'](client, msg);
                 }
