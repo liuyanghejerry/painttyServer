@@ -56,367 +56,9 @@ function RoomManager(options) {
     },
     'init_router': function(callback) {
       self.router = new Router();
-      self.router.reg('request', 'roomlist',
-      function(cli, obj) {
-        var r_self = this;
-        var ret = {};
-        var list = [];
-        _.each(r_self.roomInfos, function(item) {
-          if (_.isUndefined(item)) return;
-          var r = {
-            port: item.port,
-            serveraddress: r_self.pubServer.address().address,
-            maxload: item.maxLoad,
-            currentload: item.currentLoad,
-            name: item.name,
-            'private': item['private']
-          };
-          // logger.log(r);
-          list.push(r);
-        });
-        ret['response'] = 'roomlist';
-        ret['roomlist'] = list;
-        ret['result'] = true;
-        logger.log(ret);
-        var jsString = common.jsonToString(ret);
-        cli.sendManagerPack(new Buffer(jsString));
-      },
-      self).reg('request', 'join',
-      function(cli, obj) {
-        // var r_self = this;
-        // cli.end();
-      },
-      self).reg('request', 'newroom',
-      function(cli, obj) {
-        var r_self = this;
-        var infoObj = obj['info'];
-        if (!infoObj) {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 200
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-
-        // amount of room limit begin
-        if (r_self.op.maxRoom) {
-          if (r_self.roomInfos.length > r_self.op.maxRoom) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 210
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-        }
-        // amount of room limit end
-        // name check begin
-        if (!infoObj['name']) {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 203
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        var name = _.isString(infoObj['name']) ? infoObj['name'] : false;
-        if (!name) {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 203
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        if (r_self.roomInfos[name]) {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 202
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        // name check end
-        // maxLoad check begin
-        if (infoObj['maxload']) {
-          var maxLoad = parseInt(infoObj['maxload'], 10);
-          if (maxLoad < 0 || maxLoad > 17) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 204
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-        } else {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 204
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        // maxLoad check end
-        // welcomemsg check begin
-        if (infoObj['welcomemsg']) {
-          if (!_.isString(infoObj['welcomemsg'])) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 205
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-          var welcomemsg = infoObj['welcomemsg'];
-          if (welcomemsg.length > 40) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 205
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-        } else {
-          var welcomemsg = '';
-        }
-        // welcomemsg check end
-        // password check begin
-        if (infoObj['password']) {
-          if (!_.isString(infoObj['password'])) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 207
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-          var password = infoObj['password'];
-          if (password.length > 16) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 207
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-        } else {
-          var password = '';
-        }
-        // password check end
-        // emptyclose check begin
-        if (infoObj['emptyclose']) {
-          if (!_.isBoolean(infoObj['emptyclose'])) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 207
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-          var emptyclose = infoObj['emptyclose'];
-        } else {
-          var emptyclose = false;
-        }
-        // emptyclose check end
-        // canvasSize check begin
-        if (infoObj['size']) {
-          if (!_.isObject(infoObj['size'])) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 211
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-          var canvasWidth = parseInt(infoObj['size']['width'], 10);
-          var canvasHeight = parseInt(infoObj['size']['height'], 10);
-          // constrain canvas.
-          canvasWidth = ( canvasWidth > 0 && canvasHeight > 0 ) ? canvasWidth : 0;
-          if (!canvasWidth || !canvasHeight) {
-            var ret = {
-              response: 'newroom',
-              result: false,
-              errcode: 211
-            };
-            logger.log(ret);
-            var jsString = common.jsonToString(ret);
-            cli.sendManagerPack(new Buffer(jsString));
-            return;
-          }
-          var canvasSize = {
-            width: canvasWidth,
-            height: canvasHeight
-          };
-        } else {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 211
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        // canvasSize check end
-
-        // if server is too busy
-        if(toobusy()) {
-          var ret = {
-            response: 'newroom',
-            result: false,
-            errcode: 201
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          return;
-        }
-        // end of busy check
-
-
-        var room = new Room({
-          'name': name,
-          'maxLoad': maxLoad,
-          'welcomemsg': welcomemsg,
-          'emptyclose': emptyclose,
-          'password': password,
-          'canvasSize': canvasSize,
-          'expiration': 48 // 48 hours to close itself
-        });
-
-        room.on('create', function(info) {
-          var ret = {
-            response: 'newroom',
-            result: true,
-            'info': {
-              port: info['port'],
-              key: info['key']
-            }
-          };
-          logger.log(ret);
-          var jsString = common.jsonToString(ret);
-          cli.sendManagerPack(new Buffer(jsString));
-          r_self.roomObjs[infoObj['name']] = room;
-          var infoBlock = {
-            port: info['port'],
-            name: info['name'],
-            maxLoad: info['maxLoad'],
-            'private': info['private'],
-            'timestamp': (new Date()).getTime(),
-            currentLoad: 0
-          };
-          r_self.roomInfos[infoObj['name']] = infoBlock;
-          if (cluster.isWorker) {
-            cluster.worker.send({
-              'message': 'newroom',
-              'info': infoBlock
-            });
-          };
-
-          var roomToSaveDb = {
-             'name': info['name'],
-             'canvasSize': room['options']['canvasSize'],
-             'password': room['options']['password'],
-             'maxLoad': room['options']['maxLoad'],
-             'welcomemsg': room['options']['welcomemsg'],
-             'emptyclose': room['options']['emptyclose'],
-             'expiration': room['options']['expiration'],
-             'permanent': room['options']['permanent'],
-             'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
-             'key': info['key'],
-             'archive': room['archive'],
-             'archiveSign': room['options']['archiveSign'],
-             'port': room.port(),
-             'localId': r_self.op.localId
-          };
-
-          RoomModel.findOneAndUpdate(
-            {'name': info['name']}, 
-            roomToSaveDb,
-            {
-              'upsert': true
-            }, function (err, small) {
-              if (err) {
-                logger.error('Error when upsert new room: ', err, roomToSaveDb);
-                return;
-              }
-              // saved!
-              logger.log('Room saved to db: ', roomToSaveDb);
-          });
-        }).on('close', function() {
-          delete r_self.roomObjs[room.options.name];
-          delete r_self.roomInfos[room.options.name];
-        }).on('destroyed', function() {
-          RoomModel.remove({ 'name': room.options.name }, function (err) {
-            if (err) {
-              logger.error('Error when removing room from db:', err);
-              return;
-            }
-            logger.log('Room ', room.options.name, 'removed from db.');
-          });
-        }).on('checkout', function() {
-          RoomModel.update(
-            {'name': room.options.name}, 
-            {'checkoutTimestamp': room.options.lastCheckoutTimestamp},
-            function(err) {
-              if (err) {
-                logger.error(err);
-              };
-            });
-        }).on('newarchivesign', function(new_sign){
-          RoomModel.update(
-            {'name': room.options.name}, 
-            {'archiveSign': new_sign},
-            function(err) {
-              if (err) {
-                logger.error(err);
-              };
-          });
-        });
-        
-      },
-      self);
+      self.router.reg('request', 'roomlist', proc_roomlist, self)
+      .reg('request', 'join', proc_join, self)
+      .reg('request', 'newroom', proc_newroom, self);
       callback();
     },
     'start_server': ['init_router', 'init_db', function(callback) {
@@ -557,6 +199,367 @@ function RoomManager(options) {
 }
 
 util.inherits(RoomManager, events.EventEmitter);
+
+function proc_roomlist(cli, obj)
+{
+  var r_self = this;
+  var ret = {};
+  var list = [];
+  _.each(r_self.roomInfos, function(item) {
+    if (_.isUndefined(item)) return;
+    var r = {
+      port: item.port,
+      serveraddress: r_self.pubServer.address().address,
+      maxload: item.maxLoad,
+      currentload: item.currentLoad,
+      name: item.name,
+      'private': item['private']
+    };
+    // logger.log(r);
+    list.push(r);
+  });
+  ret['response'] = 'roomlist';
+  ret['roomlist'] = list;
+  ret['result'] = true;
+  logger.log(ret);
+  var jsString = common.jsonToString(ret);
+  cli.sendManagerPack(new Buffer(jsString));
+}
+
+function proc_join(cli, obj)
+{
+  //
+}
+
+function proc_newroom(cli, obj)
+{
+  var r_self = this;
+  var infoObj = obj['info'];
+  if (!infoObj) {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 200
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+
+  // amount of room limit begin
+  if (r_self.op.maxRoom) {
+    if (r_self.roomInfos.length > r_self.op.maxRoom) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 210
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+  }
+  // amount of room limit end
+  // name check begin
+  if (!infoObj['name']) {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 203
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  var name = _.isString(infoObj['name']) ? infoObj['name'] : false;
+  if (!name) {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 203
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  if (r_self.roomInfos[name]) {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 202
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  // name check end
+  // maxLoad check begin
+  if (infoObj['maxload']) {
+    var maxLoad = parseInt(infoObj['maxload'], 10);
+    if (maxLoad < 0 || maxLoad > 17) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 204
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+  } else {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 204
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  // maxLoad check end
+  // welcomemsg check begin
+  if (infoObj['welcomemsg']) {
+    if (!_.isString(infoObj['welcomemsg'])) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 205
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+    var welcomemsg = infoObj['welcomemsg'];
+    if (welcomemsg.length > 40) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 205
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+  } else {
+    var welcomemsg = '';
+  }
+  // welcomemsg check end
+  // password check begin
+  if (infoObj['password']) {
+    if (!_.isString(infoObj['password'])) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 207
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+    var password = infoObj['password'];
+    if (password.length > 16) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 207
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+  } else {
+    var password = '';
+  }
+  // password check end
+  // emptyclose check begin
+  if (infoObj['emptyclose']) {
+    if (!_.isBoolean(infoObj['emptyclose'])) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 207
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+    var emptyclose = infoObj['emptyclose'];
+  } else {
+    var emptyclose = false;
+  }
+  // emptyclose check end
+  // canvasSize check begin
+  if (infoObj['size']) {
+    if (!_.isObject(infoObj['size'])) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 211
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+    var canvasWidth = parseInt(infoObj['size']['width'], 10);
+    var canvasHeight = parseInt(infoObj['size']['height'], 10);
+    // constrain canvas.
+    canvasWidth = ( canvasWidth > 0 && canvasHeight > 0 ) ? canvasWidth : 0;
+    if (!canvasWidth || !canvasHeight) {
+      var ret = {
+        response: 'newroom',
+        result: false,
+        errcode: 211
+      };
+      logger.log(ret);
+      var jsString = common.jsonToString(ret);
+      cli.sendManagerPack(new Buffer(jsString));
+      return;
+    }
+    var canvasSize = {
+      width: canvasWidth,
+      height: canvasHeight
+    };
+  } else {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 211
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  // canvasSize check end
+
+  // if server is too busy
+  if(toobusy()) {
+    var ret = {
+      response: 'newroom',
+      result: false,
+      errcode: 201
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    return;
+  }
+  // end of busy check
+
+
+  var room = new Room({
+    'name': name,
+    'maxLoad': maxLoad,
+    'welcomemsg': welcomemsg,
+    'emptyclose': emptyclose,
+    'password': password,
+    'canvasSize': canvasSize,
+    'expiration': 48 // 48 hours to close itself
+  });
+
+  room.on('create', function(info) {
+    var ret = {
+      response: 'newroom',
+      result: true,
+      'info': {
+        port: info['port'],
+        key: info['key']
+      }
+    };
+    logger.log(ret);
+    var jsString = common.jsonToString(ret);
+    cli.sendManagerPack(new Buffer(jsString));
+    r_self.roomObjs[infoObj['name']] = room;
+    var infoBlock = {
+      port: info['port'],
+      name: info['name'],
+      maxLoad: info['maxLoad'],
+      'private': info['private'],
+      'timestamp': (new Date()).getTime(),
+      currentLoad: 0
+    };
+    r_self.roomInfos[infoObj['name']] = infoBlock;
+    if (cluster.isWorker) {
+      cluster.worker.send({
+        'message': 'newroom',
+        'info': infoBlock
+      });
+    };
+
+    var roomToSaveDb = {
+       'name': info['name'],
+       'canvasSize': room['options']['canvasSize'],
+       'password': room['options']['password'],
+       'maxLoad': room['options']['maxLoad'],
+       'welcomemsg': room['options']['welcomemsg'],
+       'emptyclose': room['options']['emptyclose'],
+       'expiration': room['options']['expiration'],
+       'permanent': room['options']['permanent'],
+       'checkoutTimestamp': room['options']['lastCheckoutTimestamp'],
+       'key': info['key'],
+       'archive': room['archive'],
+       'archiveSign': room['options']['archiveSign'],
+       'port': room.port(),
+       'localId': r_self.op.localId
+    };
+
+    RoomModel.findOneAndUpdate(
+      {'name': info['name']}, 
+      roomToSaveDb,
+      {
+        'upsert': true
+      }, function (err, small) {
+        if (err) {
+          logger.error('Error when upsert new room: ', err, roomToSaveDb);
+          return;
+        }
+        // saved!
+        logger.log('Room saved to db: ', roomToSaveDb);
+    });
+  }).on('close', function() {
+    delete r_self.roomObjs[room.options.name];
+    delete r_self.roomInfos[room.options.name];
+  }).on('destroyed', function() {
+    RoomModel.remove({ 'name': room.options.name }, function (err) {
+      if (err) {
+        logger.error('Error when removing room from db:', err);
+        return;
+      }
+      logger.log('Room ', room.options.name, 'removed from db.');
+    });
+  }).on('checkout', function() {
+    RoomModel.update(
+      {'name': room.options.name}, 
+      {'checkoutTimestamp': room.options.lastCheckoutTimestamp},
+      function(err) {
+        if (err) {
+          logger.error(err);
+        };
+      });
+  }).on('newarchivesign', function(new_sign){
+    RoomModel.update(
+      {'name': room.options.name}, 
+      {'archiveSign': new_sign},
+      function(err) {
+        if (err) {
+          logger.error(err);
+        };
+    });
+  });
+}
 
 RoomManager.prototype.stop = function() {
   var self = this;
