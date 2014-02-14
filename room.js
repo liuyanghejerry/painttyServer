@@ -9,6 +9,7 @@ var common = require('./libs/common.js');
 var socket = require('./libs/streamedsocket.js');
 var SocketClient = socket.SocketClient;
 var Router = require("./libs/router.js");
+var TypeChecker = require("./libs/types.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
 var globalSaltHash = common.globalSaltHash;
@@ -60,7 +61,6 @@ function Room(options) {
       return false;
     };
 
-    logger.trace('Room', room_ref.options.name, 'timeout and will be deleted.');
     room_ref.options.permanent = false;
     if (room_ref.currentLoad() > 0) {
       room_ref.options.emptyclose = true;
@@ -133,7 +133,8 @@ function Room(options) {
       .reg('request', 'onlinelist', proc_onlinelist, room)
       .reg('request', 'checkout', proc_checkout, room)
       .reg('request', 'archivesign', proc_archivesign, room)
-      .reg('request', 'archive',  proc_archive, room);
+      .reg('request', 'archive',  proc_archive, room)
+      .reg('request', 'heartbeat', proc_heartbeat, room);
       callback();
     }],
     'init_socket': ['install_router', function(callback){
@@ -519,6 +520,25 @@ function proc_archive(cli, obj)
       r_room.sendCommandTo(cli, ret);
       r_room.socket.joinRadio(cli, startPos, datalength);
     }
+  }
+}
+function proc_heartbeat(cli, obj)
+{
+  var r_room = this;
+  var client_time = parseInt(obj['timestamp'], 10);
+  if (!TypeChecker.isNumber(client_time)) {
+    logger.warn('non-number timestamp encountered in heartbeat');
+    return;
+  }
+  cli['last_heartbeat'] = client_time;
+  // 1/20 to return a heartbeat
+  if(common.getRandomInt(0, 20) === 0) {
+    var ret = {
+      response: 'heartbeat',
+      timestamp: parseInt(Date.now() / 1000, 10)
+    };
+    logger.log(ret);
+    r_room.sendCommandTo(cli, ret);
   }
 }
 
