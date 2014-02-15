@@ -441,7 +441,7 @@ SocketServer.prototype.sendDataTo = function (client_ref, data, pack_type) {
 
 SocketServer.prototype.broadcastData = function (data, pack_type) {
   var server = this;
-  if(self.unalive) {
+  if(server.unalive) {
     return;
   }
   // TODO: need to change for new interface of SocketClient
