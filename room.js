@@ -636,7 +636,7 @@ Room.prototype.close = function() {
 
   if (!self.options.permanent) {
     process.nextTick(function(){
-      self.emit('destroyed');
+      self.emit('destroyed', self.options.name);
     });
   }
 

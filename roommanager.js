@@ -166,13 +166,13 @@ function RoomManager(options) {
                     logger.error(err);
                   };
               });
-            }).once('destroyed', function() {
-              RoomModel.remove({ 'name': n_room.options.name }, function (err) {
+            }).once('destroyed', function(r_name) {
+              RoomModel.remove({ 'name': r_name }, function (err) {
                 if (err) {
                   logger.error('Error when removing room from db:', err);
                   return;
                 }
-                logger.log('Room ', n_room.options.name, 'removed from db.');
+                logger.log('Room ', r_name, 'removed from db.');
               });
             }).on('newarchivesign', function(new_sign){
               RoomModel.update(
