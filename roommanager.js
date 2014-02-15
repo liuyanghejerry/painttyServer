@@ -99,7 +99,7 @@ function RoomManager(options) {
 
         function roomInfoRefresh() {
           var now = (new Date()).getTime();
-          self.roomInfos.forEach(function(ele, ind, list) {
+          _.each(self.roomInfos, function(ele, ind, list) {
             if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
               if(list[ele['name']]){
                 logger.warn(ele['name'], 'is timeout and deleted.');
@@ -206,7 +206,7 @@ function proc_roomlist(cli, obj)
   var r_self = this;
   var ret = {};
   var list = [];
-  r_self.roomInfos.forEach(function(item) {
+  _.each(r_self.roomInfos, function(item) {
     if (TypeChecker.isUndefined(item)) return;
     var r = {
       port: item.port,
@@ -250,7 +250,7 @@ function proc_newroom(cli, obj)
 
   // amount of room limit begin
   if (r_self.op.maxRoom) {
-    if (r_self.roomInfos.length > r_self.op.maxRoom) {
+    if (_.size(r_self.roomInfos) > r_self.op.maxRoom) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -565,7 +565,7 @@ function proc_newroom(cli, obj)
 RoomManager.prototype.stop = function() {
   var self = this;
   clearInterval(self.roomInfoRefreshTimer);
-  self.roomObjs.forEach(function(item) {
+  _.each(self.roomObjs, function(item) {
     item.close();
   });
   db.close();
@@ -574,7 +574,7 @@ RoomManager.prototype.stop = function() {
 
 RoomManager.prototype.localcast = function(msg) {
   var self = this;
-  self.roomObjs.forEach(function(item) {
+  _.each(self.roomObjs, function(item) {
     item.bradcastMessage(msg);
   });
   return this;
