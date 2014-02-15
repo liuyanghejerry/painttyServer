@@ -7,6 +7,7 @@ var _ = require('underscore');
 var common = require('./common.js');
 var Writable = require('stream').Writable;
 var Radio = require('./radio.js');
+var TypeChecker = require("./types.js");
 var logger = common.logger;
 var globalConf = common.globalConf;
 
@@ -132,7 +133,7 @@ SocketReadAdapter.prototype._write = function(chunk, encoding, done) {
       }
       adapter.emit('message', this.p_header['pack_type'], d, this.repacked);
     };
-    afterUncompress = _.bind(afterUncompress, {
+    afterUncompress = afterUncompress.bind({
       'repacked': repacked,
       'p_header': p_header
     });
@@ -243,7 +244,7 @@ SocketClient.prototype.writeRaw = function(data, fn) {
     this.socket.write(data, fn);
   }catch(err){
     // give it a chance to run callback
-    if (_.isFunction(fn)) {
+    if (TypeChecker.isFunction(fn)) {
       fn();
     }
   }
@@ -351,7 +352,7 @@ function SocketServer(options) {
     keepAlive: true
   };
   
-  if(_.isUndefined(options)) {
+  if(TypeChecker.isUndefined(options)) {
     var options = {};
   }
   var op = _.defaults(options, defaultOptions);

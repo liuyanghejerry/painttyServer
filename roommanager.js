@@ -9,6 +9,7 @@ var mongoose = require('mongoose');
 var common = require('./libs/common.js');
 var Router = require("./libs/router.js");
 var socket = require('./libs/streamedsocket.js');
+var TypeChecker = require("./libs/types.js");
 var Room = require('./room.js');
 var MongoSchema = require('./schema.js');
 var RoomModel = MongoSchema.Model.Room;
@@ -33,7 +34,7 @@ function RoomManager(options) {
     self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died, in ms
   };
 
-  if (_.isUndefined(options)) {
+  if (TypeChecker.isUndefined(options)) {
     var options = {};
   }
   self.op = _.defaults(options, defaultOptions);
@@ -98,7 +99,7 @@ function RoomManager(options) {
 
         function roomInfoRefresh() {
           var now = (new Date()).getTime();
-          _.each(self.roomInfos, function(ele, ind, list) {
+          self.roomInfos.forEach(function(ele, ind, list) {
             if( now - parseInt(ele['timestamp'], 10) > 2 * self.op.roomInfoRefreshCycle) {
               if(list[ele['name']]){
                 logger.warn(ele['name'], 'is timeout and deleted.');
@@ -118,7 +119,7 @@ function RoomManager(options) {
           logger.error('Error when query room from db: ', err);
           callback(err);
         }else{
-          _.forEach(r_rooms, function(element, index) {
+          r_rooms.forEach(function(element, index) {
             var n_room = new Room({
               'name': element.name,
               'maxLoad': element.maxLoad,
@@ -205,8 +206,8 @@ function proc_roomlist(cli, obj)
   var r_self = this;
   var ret = {};
   var list = [];
-  _.each(r_self.roomInfos, function(item) {
-    if (_.isUndefined(item)) return;
+  r_self.roomInfos.forEach(function(item) {
+    if (TypeChecker.isUndefined(item)) return;
     var r = {
       port: item.port,
       serveraddress: r_self.pubServer.address().address,
@@ -274,7 +275,7 @@ function proc_newroom(cli, obj)
     cli.sendManagerPack(new Buffer(jsString));
     return;
   }
-  var name = _.isString(infoObj['name']) ? infoObj['name'] : false;
+  var name = TypeChecker.isString(infoObj['name']) ? infoObj['name'] : false;
   if (!name) {
     var ret = {
       response: 'newroom',
@@ -326,7 +327,7 @@ function proc_newroom(cli, obj)
   // maxLoad check end
   // welcomemsg check begin
   if (infoObj['welcomemsg']) {
-    if (!_.isString(infoObj['welcomemsg'])) {
+    if (!TypeChecker.isString(infoObj['welcomemsg'])) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -355,7 +356,7 @@ function proc_newroom(cli, obj)
   // welcomemsg check end
   // password check begin
   if (infoObj['password']) {
-    if (!_.isString(infoObj['password'])) {
+    if (!TypeChecker.isString(infoObj['password'])) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -384,7 +385,7 @@ function proc_newroom(cli, obj)
   // password check end
   // emptyclose check begin
   if (infoObj['emptyclose']) {
-    if (!_.isBoolean(infoObj['emptyclose'])) {
+    if (!TypeChecker.isBoolean(infoObj['emptyclose'])) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -402,7 +403,7 @@ function proc_newroom(cli, obj)
   // emptyclose check end
   // canvasSize check begin
   if (infoObj['size']) {
-    if (!_.isObject(infoObj['size'])) {
+    if (!TypeChecker.isObject(infoObj['size'])) {
       var ret = {
         response: 'newroom',
         result: false,
@@ -564,8 +565,7 @@ function proc_newroom(cli, obj)
 RoomManager.prototype.stop = function() {
   var self = this;
   clearInterval(self.roomInfoRefreshTimer);
-  _.each(self.roomObjs,
-  function(item) {
+  self.roomObjs.forEach(function(item) {
     item.close();
   });
   db.close();
@@ -574,8 +574,7 @@ RoomManager.prototype.stop = function() {
 
 RoomManager.prototype.localcast = function(msg) {
   var self = this;
-  _.each(self.roomObjs,
-  function(item) {
+  self.roomObjs.forEach(function(item) {
     item.bradcastMessage(msg);
   });
   return this;
