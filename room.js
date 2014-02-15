@@ -238,7 +238,7 @@ function Room(options) {
       room.socket.once('ready', function(){
         room.options.archiveSign = room.socket.options['archiveSign'];
         room.socket.listen(room.options.port, '::');
-        room.heartbeatTimer = setInterval(room.checkHeartbeat, 10*1000);
+        room.heartbeatTimer = setInterval(room.checkHeartbeat.bind(room), 10*1000);
       });
     }]
   }, function(er){
@@ -533,13 +533,13 @@ function proc_heartbeat(cli, obj)
     return;
   }
   cli['last_heartbeat'] = client_time;
-  // 1/20 to return a heartbeat
-  if(common.getRandomInt(0, 20) === 0) {
+  // 1/10 rate to return a heartbeat
+  if(common.getRandomInt(0, 10) === 0) {
     var ret = {
       response: 'heartbeat',
       timestamp: parseInt(Date.now() / 1000, 10)
     };
-    logger.log(ret);
+    // logger.log(ret);
     r_room.sendCommandTo(cli, ret);
   }
 }
@@ -553,12 +553,13 @@ function checkClientHeartbeat(cli)
   }
   var client_time = parseInt(cli['last_heartbeat'], 10);
 
-  if (!TypeChecker.isNumber(cli['last_heartbeat'])) {
+  if (!TypeChecker.isNumber(client_time)) {
     return;
   }
   var now = parseInt(Date.now() / 1000, 10);
-  if (now - client_time > 60*2) {
+  if (now - client_time > 10) {
     try {
+      logger.trace('try to close dead client', now - client_time);
       cli.close();
     } catch (e){
       logger.error(e);

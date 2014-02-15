@@ -189,15 +189,20 @@ function SocketClient(socket) {
 
   client.socket.on('close', function(){
     // no more output
-    client.socket.unpipe();
+    if (client.socket) {
+      client.socket.unpipe();
+    }
 
     // time to destroy associated stream
     if (client['adapter']) {
       client['adapter'].cleanup();
       client['adapter'] = null;
     }
-    client.socket.removeAllListeners('message');
-    client.socket.removeAllListeners('drain');
+    if (client.socket) {
+      client.socket.removeAllListeners('message');
+      client.socket.removeAllListeners('drain');
+    }
+    
     process.nextTick(function(){
       client.emit('close');
     });
@@ -299,13 +304,26 @@ SocketClient.prototype.sendManagerPack = function(data, fn) {
 SocketClient.prototype.close = function() {
   var self = this;
   try {
-    self.socket.close();
+    self.socket.end();
     self.status = SocketClient.CLIENT_STATUS['CLOSED'];
     process.nextTick(function(){
       self.emit('close');
     });
   }catch(err){
-    //
+    logger.error(err);
+  }
+}
+
+SocketClient.prototype.kill = function() {
+  var self = this;
+  try {
+    self.socket.destroy();
+    self.status = SocketClient.CLIENT_STATUS['CLOSED'];
+    process.nextTick(function(){
+      self.emit('close');
+    });
+  }catch(err){
+    logger.error(err);
   }
 }
 
