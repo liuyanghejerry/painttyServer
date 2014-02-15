@@ -570,7 +570,10 @@ function checkClientHeartbeat(cli)
 
 Room.prototype.checkHeartbeat = function() {
   if(this.socket && this.socket.clients) {
-    this.socket.clients.forEach(checkClientHeartbeat);
+    async.eachLimit(this.socket.clients, 100, function(item, callback) {
+      checkClientHeartbeat(item);
+      callback();
+    });
   }
 };
 
