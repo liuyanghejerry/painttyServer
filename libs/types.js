@@ -14,4 +14,8 @@ exports.isFunction = function(f) {
 
 exports.isArray = function(a) {
   return util.isArray(a);
-}
+};
+
+exports.isUndefined = function(o) {
+  return typeof o === 'undefined';
+};

@@ -42,12 +42,12 @@ function Room(options) {
     self.port = 0;
   };
 
-  if (_.isUndefined(options)) {
+  if (TypeChecker.isUndefined(options)) {
     var options = {};
   }
   var op = _.defaults(options, defaultOptions);
   room.options = op;
-  if (!_.isString(op.name) || op.name.length < 1) {
+  if (!TypeChecker.isString(op.name) || op.name.length < 1) {
     logger.error('invalid room name');
     return;
   }
@@ -78,7 +78,7 @@ function Room(options) {
 
   function prepareCheckoutTimer(r_room) {
     if (r_room.options.expiration > 0) {
-      var toCall = _.partial(roomTimeout, r_room);
+      var toCall = roomTimeout.bind(this, r_room);
       r_room.checkoutTimer = setInterval(toCall, 2 * 3600 * 1000);
     }
   }
@@ -286,7 +286,7 @@ function proc_login(cli, obj)
 {
   var r_room = this;
   // name check
-  if (!obj['name'] || !_.isString(obj['name'])) {
+  if (!TypeChecker.isString(obj['name'])) {
     var ret = {
       response: 'login',
       result: false,
@@ -298,7 +298,7 @@ function proc_login(cli, obj)
   }
   // password check
   if (r_room.options.password.length > 0) {
-    if (!obj['password'] || !_.isString(obj['password']) || obj['password'] != r_room.options.password) {
+    if (TypeChecker.isString(obj['password']) || obj['password'] != r_room.options.password) {
       var ret = {
         response: 'login',
         result: false,
@@ -353,7 +353,7 @@ function proc_close(cli, obj)
 {
   var r_room = this;
   // check signed key
-  if (!obj['key'] || !_.isString(obj['key'])) {
+  if (!TypeChecker.isString(obj['key'])) {
     var ret = {
       response: 'close',
       result: false
@@ -385,7 +385,7 @@ function proc_close(cli, obj)
 function proc_clearall(cli, obj)
 {
   var r_room = this;
-  if (!obj['key'] || !_.isString(obj['key'])) {
+  if (!TypeChecker.isString(obj['key'])) {
     var ret = {
       response: 'clearall',
       result: false
@@ -432,8 +432,7 @@ function proc_onlinelist(cli, obj)
   }
 
   var people = [];
-  _.each(r_room.socket.clients,
-  function(va) {
+  r_room.socket.clients.forEach(function(va) {
     if (va['username'] && va['clientid']) {
       people.push({
         'name': va['username'],
@@ -456,7 +455,7 @@ function proc_onlinelist(cli, obj)
 function proc_checkout(cli, obj)
 {
   var r_room = this;
-  if (!obj['key'] || !_.isString(obj['key'])) {
+  if (!TypeChecker.isString(obj['key'])) {
     var ret = {
       response: 'checkout',
       result: false,
@@ -647,7 +646,7 @@ Room.prototype.close = function() {
 Room.prototype.currentLoad = function() {
   // do not count socket.clients directly because it's a public socket
   if (this.status == 'running') {
-    return (_.filter(this.socket.clients, function(cli){ 
+    return (this.socket.clients.filter(function(cli){ 
         return cli['username'] && cli['clientid']; 
       })).length;
   }else{
