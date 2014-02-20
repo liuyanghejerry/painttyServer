@@ -552,7 +552,7 @@ function checkClientHeartbeat(cli)
   }
   var last_heartbeat = parseInt(cli['last_heartbeat'], 10);
 
-  if (!TypeChecker.isNumber(client_time)) {
+  if (!TypeChecker.isNumber(last_heartbeat)) {
     return;
   }
   var now = parseInt(Date.now() / 1000, 10);
