@@ -536,7 +536,7 @@ function proc_heartbeat(cli, obj)
   if(common.getRandomInt(0, 5) === 0) {
     var ret = {
       response: 'heartbeat',
-      timestamp: parseInt(Date.now() / 1000, 10)
+      timestamp: client_time
     };
     // logger.log(ret);
     r_room.sendCommandTo(cli, ret);
