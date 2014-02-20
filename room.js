@@ -533,7 +533,7 @@ function proc_heartbeat(cli, obj)
   }
   cli['last_heartbeat'] = client_time;
   // 1/10 rate to return a heartbeat
-  if(common.getRandomInt(0, 10) === 0) {
+  if(common.getRandomInt(0, 5) === 0) {
     var ret = {
       response: 'heartbeat',
       timestamp: parseInt(Date.now() / 1000, 10)
@@ -556,7 +556,7 @@ function checkClientHeartbeat(cli)
     return;
   }
   var now = parseInt(Date.now() / 1000, 10);
-  if (now - client_time > 10) {
+  if (now - client_time > 60) {
     try {
       logger.trace('try to close dead client', now - client_time);
       cli.close();
