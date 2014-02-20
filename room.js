@@ -531,7 +531,7 @@ function proc_heartbeat(cli, obj)
     logger.warn('non-number timestamp encountered in heartbeat');
     return;
   }
-  cli['last_heartbeat'] = client_time;
+  cli['last_heartbeat'] = parseInt(Date.now() / 1000, 10);
   // 1/10 rate to return a heartbeat
   if(common.getRandomInt(0, 5) === 0) {
     var ret = {
@@ -550,15 +550,15 @@ function checkClientHeartbeat(cli)
   if (!cli) {
     return;
   }
-  var client_time = parseInt(cli['last_heartbeat'], 10);
+  var last_heartbeat = parseInt(cli['last_heartbeat'], 10);
 
   if (!TypeChecker.isNumber(client_time)) {
     return;
   }
   var now = parseInt(Date.now() / 1000, 10);
-  if (now - client_time > 60) {
+  if (now - last_heartbeat > 60) {
     try {
-      logger.trace('try to close dead client', now - client_time);
+      logger.trace('try to close dead client', now - last_heartbeat);
       cli.close();
     } catch (e){
       logger.error(e);
