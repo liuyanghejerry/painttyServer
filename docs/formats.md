@@ -305,30 +305,6 @@ where `errcode` can be:
 
 All room management actions need a signed key to prove that the actions are made by room owners. However, not every action in this section is management.
 
-#### Heartbeat
-
-Heartbeat is sent by client, and reply or not reply by server.
-
-sends:
-
-	{
-		request: 'heartbeat',
-		timestamp: 1392389074
-	}
-
-`timestamp` is a unix timestamp. Note, we don't use ms-level timestamp, because 64-bit long integer is not good for JavaScript.
-
-returns(optional):
-
-	{
-		response: 'hearbeat',
-		timestamp: 1392389084
-	}
-
-Connection is always controlled by server. An optional heartbeat message can be sent to client, helping client to judge network speed(via `timestamp`).
-
-Generally, heartbeat request should be sent once per 30 seconds. Clients that not send heartbeat within 2 minute are dropped. However, if one client has never sent heartbeat, is treated as legacy client, which won't be dropped specially. This may lead to some security problems, and will be erased around 0.6.
-
 #### Checkout
 
 To ensure one room is still under control, server schedules a close action to room. Thus, room owner must checkout in time. Currently, 72 hours seems a good schedule time.
@@ -459,7 +435,31 @@ It is a good warning for people who think they can be scot-free.
 
 ### Room interaction
 
-Interaction between client and room can be achieved via command socket or channal. For security reason, each request needs a `clientid`. If recieved `clientid` is unknown, the request may be abandoned.
+Interaction between client and room can be achieved via command socket or channal. For security reason, almost each request needs a `clientid`. If recieved `clientid` is unknown, the request may be abandoned.
+
+#### Heartbeat
+
+Heartbeat is sent by client, and reply or not reply by server.
+
+sends:
+
+	{
+		request: 'heartbeat',
+		timestamp: 1392389074
+	}
+
+`timestamp` is a unix timestamp. Note, we don't use ms-level timestamp, because 64-bit long integer is not good for JavaScript.
+
+returns(optional):
+
+	{
+		response: 'hearbeat',
+		timestamp: 1392389084
+	}
+
+Connection is always controlled by server. An optional heartbeat message can be sent to client, helping client to judge network speed(via `timestamp`).
+
+Generally, heartbeat request should be sent once per 30 seconds. Clients that not send heartbeat within 2 minute are dropped. However, if one client has never sent heartbeat, is treated as legacy client, which won't be dropped specially. This may lead to some security problems, and will be erased around 0.6.
 
 #### Query Online Members
 

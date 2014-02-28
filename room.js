@@ -565,6 +565,7 @@ function proc_kick(cli, obj)
     r_room.sendCommandTo(to_be_kicked, ret);
     // wait 5s to close the client, so that message may get a chance to be received
     setTimeout(to_be_kicked.close.bind(to_be_kicked), 5000);
+    r_room.notifyAll('房主已使用天谴技能踢出了一名用户！');
   }
 }
 
