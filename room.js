@@ -135,6 +135,7 @@ function Room(options) {
       .reg('request', 'checkout', proc_checkout, room)
       .reg('request', 'archivesign', proc_archivesign, room)
       .reg('request', 'archive',  proc_archive, room)
+      .reg('request', 'kick', proc_kick, room)
       .reg('request', 'heartbeat', proc_heartbeat, room);
       callback();
     }],
