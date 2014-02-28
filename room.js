@@ -542,6 +542,24 @@ function proc_heartbeat(cli, obj)
     r_room.sendCommandTo(cli, ret);
   }
 }
+function proc_kick(cli, obj)
+{
+  var r_room = this;
+  var room_key = obj['key'];
+  var to_be_kicked = obj['clientid'];
+  if (!TypeChecker.isString(room_key) || !TypeChecker.isString(to_be_kicked)) {
+    return;
+  }
+
+  if (room_key.toLowerCase() !== r_room.signed_key.toLowerCase()) {
+    return;
+  }
+  
+  to_be_kicked = r_room.findClientById(to_be_kicked);
+  if (to_be_kicked) {
+    to_be_kicked.close();
+  }
+}
 
 util.inherits(Room, events.EventEmitter);
 
@@ -675,5 +693,23 @@ Room.prototype.notifyAll = function(content) {
   sendContent = new Buffer(sendContent);
   self.socket.broadcastData(sendContent, SocketClient.PACK_TYPE['COMMAND']);
 };
+
+Room.prototype.findClientById = function (clientid) {
+  var r_room = this;
+  try {
+    var target = _.find(r_room.socket.clients, function(item) {
+        return item.clientid === clientid;
+      });
+    if (target) {
+      return target;
+    } else {
+      return null;
+    }
+  } catch (e) {
+    logger.warn('cannot find client with id', clientid);
+    return null;
+  }
+  
+}
 
 module.exports = Room;

@@ -437,6 +437,20 @@ If the request succeeds, everyone in room will recieve another message:
 
 Here the `signature` is the new signature of the archive.
 
+#### Kick user
+
+Room owner can kick user inside his room. This feature is used to protect content from vandalism.
+
+Client sends:
+
+	{
+		"request": "kick",
+		"clientid": "f03e8a370aa8dc80f63a6d67401a692ae72fa530",
+		"key": "46b67a67f5c4369399704b6e56a05a8697d7c4b1"
+	}
+
+Generally, server side doesn't send any response to this request.
+
 ### Room interaction
 
 Interaction between client and room can be achieved via command socket or channal. For security reason, each request needs a `clientid`. If recieved `clientid` is unknown, the request may be abandoned.
