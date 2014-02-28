@@ -449,7 +449,13 @@ Client sends:
 		"key": "46b67a67f5c4369399704b6e56a05a8697d7c4b1"
 	}
 
-Generally, server side doesn't send any response to this request.
+Generally, server side doesn't send any response to this request. However, client to be kicked will get a message:
+
+	{
+		"action": "kick"
+	}
+
+It is a good warning for people who think they can be scot-free.
 
 ### Room interaction
 

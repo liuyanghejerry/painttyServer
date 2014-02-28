@@ -558,7 +558,13 @@ function proc_kick(cli, obj)
   
   to_be_kicked = r_room.findClientById(to_be_kicked);
   if (to_be_kicked) {
-    to_be_kicked.close();
+    var ret = {
+      action: 'kick'
+    };
+    // logger.log(ret);
+    r_room.sendCommandTo(to_be_kicked, ret);
+    // wait 5s to close the client, so that message may get a chance to be received
+    setTimeout(to_be_kicked.close.bind(to_be_kicked), 5000);
   }
 }
 
