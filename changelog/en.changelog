@@ -1,2 +1,10 @@
-* Tries to fix text error in some rare conditions by adding Chinese font
-* Updates updater server IP
+* Re-write brush system
+* Reduce network usage
+* Add heartbeat message
+* Enable rotation of canvas
+* Rotation, zoom get their shortcut. Also, shortcuts of brushes are re-arranged
+* Re-tune color scheme
+* Re-write updater. Windows version now can auto-update, while Mac OS X users still have to wait and manually update, sorry
+* Fix issue that color tuner can't pick some colors
+* Fix issue that user-defined server is not properly saved
+* Fix other small issues

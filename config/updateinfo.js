@@ -12,7 +12,7 @@ var ConfigObject = {
   url: {
     'windows x86': 'http://download.mrspaint.com/0.5/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.5.zip',
     'windows x64': 'http://download.mrspaint.com/0.5/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x64_0.5.zip',
-    'mac': ''
+    'mac': 'http://download.mrspaint.com/0.5/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_Mac_0.5.zip'
   },
   updater: {
     version: 20
