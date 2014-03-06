@@ -20,6 +20,11 @@ function Updater(options) {
       return done(null, self.changelog[language]);
     }
 
+    if (!updateConf.changelog[language]) {
+      changelogCache(updateConf.defaultlang, done);
+      return;
+    }
+
     fs.readFile(
       updateConf.changelog[language],
       {

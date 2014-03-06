@@ -8,6 +8,7 @@ var ConfigObject = {
     'zh_tw': './changelog/zh_tw.changelog',
     'ja': './changelog/ja.changelog'
   },
+  defaultlang: 'en',
   level: 2,
   url: {
     'windows x86': 'http://download.mrspaint.com/0.5/%E8%8C%B6%E7%BB%98%E5%90%9B_Alpha_x86_0.5.zip',
