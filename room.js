@@ -299,7 +299,7 @@ function proc_login(cli, obj)
   }
   // password check
   if (r_room.options.password.length > 0) {
-    if (TypeChecker.isString(obj['password']) || obj['password'] != r_room.options.password) {
+    if (!TypeChecker.isString(obj['password']) || obj['password'] != r_room.options.password) {
       var ret = {
         response: 'login',
         result: false,
