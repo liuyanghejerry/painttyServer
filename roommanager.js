@@ -28,7 +28,7 @@ function RoomManager(options) {
     var self = this;
     self.name = ''; // Name of RoomManager
     self.localId = 0; // Id to recover died rooms
-    self.maxRoom = 50; // Limits the rooms
+    self.maxRoom = 500; // Limits the rooms
     self.pubPort = globalConf['manager']['publicPort']; // Default public port. This is used to connect with clients or master.
     self.log = false; // Log or not, not really used
     self.roomInfoRefreshCycle = 10*1000; // Refresh cycle for checking whether a room is died, in ms
