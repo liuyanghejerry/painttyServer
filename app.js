@@ -1,8 +1,6 @@
 var cluster = require('cluster');
 var numCPUs = require('os').cpus().length;
-// var numCPUs = 4;
 var heapdump = require('heapdump');
-var _ = require('underscore');
 var domain = require('domain');
 var toobusy = require('toobusy');
 var async = require('async');
@@ -12,10 +10,9 @@ var Router = require("./libs/router.js");
 var RoomManager = require('./roommanager.js');
 var socket = require('./libs/streamedsocket.js');
 var CpuCare = require('./libs/cpucare.js');
+var TypeChecker = require('./libs/types.js');
 var logger = common.logger;
 var globalConf = common.globalConf;
-// var express = require('express');
-// var httpServer = express();
 
 // var agent = require('webkit-devtools-agent');
 
@@ -40,7 +37,7 @@ if (cluster.isMaster) {
 
       router.reg('request', 'broadcast', function(cli, obj){
         var msg = obj['msg'];
-        if (!_.isString(msg)) {
+        if (!TypeChecker.isString(msg)) {
           var ret = {
             'response': 'broadcast',
             'result': false
@@ -82,9 +79,9 @@ if (cluster.isMaster) {
         var worker = cluster.fork({'memberId': memberId});
         worker.memberId = memberId;
         worker.on('message', function(msg) {
-          _.each(cluster.workers, function(ele, index, list) {
-            ele.send(msg);
-          });
+          for (var wid in cluster.workers) {
+            cluster.workers[wid].send(msg);
+          }
         });
         // attach cpu usage monitor
         var c_care = new CpuCare({
@@ -170,25 +167,3 @@ if (cluster.isMaster) {
     }
   });
 }
-
-
-// httpServer.get('/', function(req, res) {
-    // var list = [];
-    // _.each(roomManager.roomObjs, function(item) {
-        // if(_.isUndefined(item)) return;
-        // var r = {
-            // cmdport: item.cmdSocket.address().port,
-            // // serveraddress: roomManager.pubServer.address().address,
-            // maxload: item.options.maxLoad,
-            // currentload: item.currentLoad(),
-            // name: item.options.name,
-            // 'private': item.options.password.length > 0
-        // };
-        // list.push(r);
-    // });
-    // list.push(roomManager.pubServer.address());
-    // var m = JSON.stringify(list);
-    // res.send('<h2>Hello from Mr.Paint</h2><p>Here is some debug info: </p>'+m);
-// });
-
-// httpServer.listen(39797);
