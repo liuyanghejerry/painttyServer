@@ -1,10 +1,7 @@
-* Re-write brush system
-* Reduce network usage
-* Add heartbeat message
-* Enable rotation of canvas
-* Rotation, zoom get their shortcut. Also, shortcuts of brushes are re-arranged
-* Re-tune color scheme
-* Re-write updater. Windows version now can auto-update, while Mac OS X users still have to wait and manually update, sorry
-* Fix issue that color tuner can't pick some colors
-* Fix issue that user-defined server is not properly saved
-* Fix other small issues
+* Added moving tool
+* Fixed issue that name disappears
+* Added PSD exporting(Thanks to Roywillow)
+* Changed default save as position
+* Fixed issue that some brushes cannot paint when width smaller than 4px
+* Added kicking for room owners
+* Added updater for Max OSX
