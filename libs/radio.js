@@ -4,14 +4,14 @@ var util = require("util");
 var crypto = require('crypto');
 var _ = require('underscore');
 var async = require('async');
-var common = require('./common.js');
+var Q = require('q');
 var BufferedFile = require('./bufferedfile.js');
+var common = require('./common.js');
 var logger = common.logger;
-var globalConf = common.globalConf;
 
 var CHUNK_SIZE = 1024*400; // Bytes
 var MAX_CHUNKS_IN_QUEUE = 2048; // which means there shuold be 2048 RadioChunk instances in pending queue at most
-var SEND_INTERVAL = 800; // check pending list every 800ms to send new items
+var SEND_INTERVAL = 500; // check pending list every 800ms to send new items
 
 function RadioChunk(start, length) {
   this.start = start;
@@ -120,6 +120,11 @@ function push_ram_chunk (chunk, queue) {
 }
 
 function appendToPendings(chunk, list) {
+  if (!(chunk instanceof RadioChunk)) {
+    list = push_ram_chunk(chunk, list);
+    return list;
+  }
+
   if (list.length > 0) {
     var bottomItem = list.pop();
     if(bottomItem instanceof RadioChunk){
@@ -217,32 +222,36 @@ Radio.prototype.singleSend = function(datachunk, destClient) {
   // datachunk = null;
 };
 
-function fetch_and_send(list, bufferedfile, client, ok) {
-  if (list && list.length > 0 && ok && _.isFunction(ok)) {
+function fetch_and_send(list, bufferedfile, client) {
+  var deferred = Q.defer();
+  if (list && list.length > 0) {
     var item = list[0];
     list.shift();
 
     if(item instanceof RadioChunk){
       bufferedfile.read(item['start'], item['chunkSize'], function(datachunk){
         if (datachunk.length == item['chunkSize']) {
-          var isIdel = client.writeRaw(datachunk, function(){
+          client.writeRaw(datachunk, function(){
             // logger.trace('fetched data', datachunk);
-            ok(isIdel);
+            deferred.resolve(true);
           });
         }else{
           // fetch failed, should schedual another try
           list.unshift(item);
-          ok(false);
+          deferred.resolve(false);
         }
       });
     }else{
       // take care of RadioRAMChunk
-      var isIdel = client.writeRaw(item['buffer'], function() {
-        ok(isIdel);
+      client.writeRaw(item['buffer'], function() {
+        deferred.resolve(true);
       });
     }
+  } else {
+    deferred.resolve(false);
   }
-  ok(false);
+
+  return deferred.promise;
 }
 
 Radio.prototype.addClient = function(cli, start, size) {
@@ -253,26 +262,22 @@ Radio.prototype.addClient = function(cli, start, size) {
     var c = cli;
     if (c && c.pendingList && c.pendingList.length > 0) {
       // send chunks one by one in pendingList
-      // logger.trace('queue:', c.pendingList);
-      
-      var should_next = true;
-      async.whilst(
-        function() {
-          return should_next;
-        }, function(callback){
-          fetch_and_send(c.pendingList, radio.writeBufferedFile, c, function(go_on){
-          should_next = go_on;
-          callback();
+
+      function loop(promise) {
+        return promise().then(function (next) {
+          return next ? next : loop(promise);
         });
-      }, function(err){
-        if (err) {
-          logger.error('Error when processPending', err);
+      }
+
+      var try_send = function() {
+        return fetch_and_send(c.pendingList, radio.writeBufferedFile, c);
+      }
+      
+      loop(try_send).done(function() {
+        if (_.isFunction(done)) {
+          done();
         }
       });
-      
-      if (_.isFunction(done)) {
-        done();
-      }
     }else{
       if (done && _.isFunction(done)) {
         done();
