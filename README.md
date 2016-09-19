@@ -1,6 +1,8 @@
 painttyServer
 =============
 
+DEPRECATED: Go to https://github.com/liuyanghejerry/painttyServer-Go if you're interested.
+
 This is server of Mr.Paint, 茶绘君, located at http://mrspaint.com
 
 For client of Mr.Paint, check out https://github.com/liuyanghejerry/painttyWidget
